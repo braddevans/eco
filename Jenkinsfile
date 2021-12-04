@@ -1,10 +1,5 @@
 pipeline {
-  agent {
-    node {
-      label 'eco-agent'
-    }
-
-  }
+  agent any
   stages {
     stage('startBuild') {
       steps {
