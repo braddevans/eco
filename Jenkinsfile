@@ -3,9 +3,12 @@ pipeline {
   stages {
     stage('startBuild') {
       steps {
-        sh '''#!/bin/sh
+        dockerNode(image: 'openjdk:17') {
+          sh '''#!/bin/sh
 chmod a+x ./gradlew
 ./gradlew clean build'''
+        }
+
       }
     }
 
