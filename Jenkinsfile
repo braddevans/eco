@@ -1,16 +1,11 @@
 pipeline {
   agent any
   stages {
-    stage('Build') {
-      agent {
-        docker {
-          reuseNode true
-          image 'gradle:7.3.1-jdk17'
-        }
-
-      }
+    stage('startBuild') {
       steps {
-        sh 'gradle clean build'
+        sh '''#!/bin/sh
+            chmod a+x ./gradlew
+            ./gradlew clean build'''
       }
     }
 
