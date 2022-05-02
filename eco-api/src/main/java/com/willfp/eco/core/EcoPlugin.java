@@ -14,7 +14,6 @@ import com.willfp.eco.core.factory.NamespacedKeyFactory;
 import com.willfp.eco.core.factory.RunnableFactory;
 import com.willfp.eco.core.integrations.IntegrationLoader;
 import com.willfp.eco.core.integrations.placeholder.PlaceholderManager;
-import com.willfp.eco.core.proxy.AbstractProxy;
 import com.willfp.eco.core.proxy.ProxyFactory;
 import com.willfp.eco.core.scheduling.Scheduler;
 import com.willfp.eco.core.web.UpdateChecker;
@@ -32,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -152,10 +152,14 @@ public abstract class EcoPlugin extends JavaPlugin implements PluginLike {
     private final ProxyFactory proxyFactory;
 
     /**
-     * Create a new plugin without a specified color, proxy support, polymart, or bStats.
+     * Create a new plugin.
+     * <p>
+     * Will read from eco.yml (like plugin.yml) to fetch values that would otherwise be passed
+     * into the constructor. If no eco.yml is present, the plugin will load without extension
+     * support, without proxy support, with no update-checker or bStats, and with the color white.
      */
     protected EcoPlugin() {
-        this("&f");
+        this((PluginProps) null);
     }
 
     /**
@@ -236,6 +240,23 @@ public abstract class EcoPlugin extends JavaPlugin implements PluginLike {
                         @NotNull final String proxyPackage,
                         @NotNull final String color,
                         final boolean supportingExtensions) {
+        this(
+                PluginProps.createSimple(
+                        resourceId,
+                        bStatsId,
+                        proxyPackage,
+                        color,
+                        supportingExtensions
+                )
+        );
+    }
+
+    /**
+     * Create a new plugin.
+     *
+     * @param pluginProps The props. If left null, it will read from eco.yml.
+     */
+    protected EcoPlugin(@Nullable final PluginProps pluginProps) {
         /*
         The handler must be initialized before any plugin's constructors
         are called, as the constructors call Eco#getHandler().
@@ -253,15 +274,15 @@ public abstract class EcoPlugin extends JavaPlugin implements PluginLike {
         a standalone handler class, but then there would be an interface
         left in the API that doesn't really help anything.
 
-        The other alternative would be do use reflection to get a 'createHandler'
-        method that only exists in EcoSpigotPlugin - but that feels really dirty
+        The other alternative would be to use reflection to get a 'createHandler'
+        method that only exists in EcoSpigotPlugin - but that feels filthy,
         and I'd rather only use reflection where necessary.
         */
 
         if (Eco.getHandler() == null && this instanceof Handler) {
             /*
             This code is only ever called by EcoSpigotPlugin (EcoHandler)
-            as it's the first plugin to load and it is a handler.
+            as it's the first plugin to load, and it is a handler.
 
             Any other plugins will never call this code as the handler
             will have already been initialized.
@@ -272,11 +293,16 @@ public abstract class EcoPlugin extends JavaPlugin implements PluginLike {
 
         assert Eco.getHandler() != null;
 
-        this.resourceId = resourceId;
-        this.bStatsId = bStatsId;
-        this.proxyPackage = proxyPackage;
-        this.color = color;
-        this.supportingExtensions = supportingExtensions;
+        PluginProps generatedProps = Eco.getHandler().getProps(pluginProps, this.getClass());
+        generatedProps.validate();
+        PluginProps props = this.mutateProps(generatedProps);
+        props.validate();
+
+        this.resourceId = props.getResourceId();
+        this.bStatsId = props.getBStatsId();
+        this.proxyPackage = props.getProxyPackage();
+        this.color = props.getColor();
+        this.supportingExtensions = props.isSupportingExtensions();
 
         this.scheduler = Eco.getHandler().createScheduler(this);
         this.eventManager = Eco.getHandler().createEventManager(this);
@@ -293,11 +319,13 @@ public abstract class EcoPlugin extends JavaPlugin implements PluginLike {
 
         Eco.getHandler().addNewPlugin(this);
 
+        this.getLogger().info("Initializing " + this.getColor() + this.getName());
+
         /*
         The minimum eco version check was moved here because it's very common
         to add a lot of code in the constructor of plugins; meaning that the plugin
-        can throw errors without it being obvious to the user that the reason is
-        because they have an outdated version of eco installed.
+        can throw errors without it being obvious to the user that the reason is that
+        they have an outdated version of eco installed.
          */
 
         DefaultArtifactVersion runningVersion = new DefaultArtifactVersion(Eco.getHandler().getEcoPlugin().getDescription().getVersion());
@@ -327,11 +355,9 @@ public abstract class EcoPlugin extends JavaPlugin implements PluginLike {
                 DefaultArtifactVersion mostRecentVersion = new DefaultArtifactVersion(version);
                 if (!(currentVersion.compareTo(mostRecentVersion) > 0 || currentVersion.equals(mostRecentVersion))) {
                     this.outdated = true;
-                    this.getScheduler().runTimer(() -> {
-                        this.getLogger().info("&c " + this.getName() + " is out of date! (Version " + this.getDescription().getVersion() + ")");
-                        this.getLogger().info("&cThe newest version is &f" + version);
-                        this.getLogger().info("&cDownload the new version!");
-                    }, 0, 864000);
+                    this.getLogger().warning(this.getName() + " is out of date! (Version " + this.getDescription().getVersion() + ")");
+                    this.getLogger().warning("The newest version is " + version);
+                    this.getLogger().warning("Download the new version!");
                 }
             });
         }
@@ -465,9 +491,9 @@ public abstract class EcoPlugin extends JavaPlugin implements PluginLike {
     public final void reload() {
         this.getConfigHandler().updateConfigs();
 
+        this.getScheduler().cancelAll();
         this.getConfigHandler().callUpdate();
         this.getConfigHandler().callUpdate(); // Call twice to fix issues
-        this.getScheduler().cancelAll();
 
         this.handleReload();
 
@@ -534,6 +560,21 @@ public abstract class EcoPlugin extends JavaPlugin implements PluginLike {
      */
     protected void handleAfterLoad() {
 
+    }
+
+    /**
+     * Mutate the plugin props.
+     * <p>
+     * Useful for eco-based plugin libraries to enforce certain properties, such as
+     * forcing extensions to be enabled.
+     * <p>
+     * Props are validated both before and after calling this method.
+     *
+     * @param props The props.
+     * @return The mutated props.
+     */
+    protected PluginProps mutateProps(@NotNull final PluginProps props) {
+        return props;
     }
 
     /**
@@ -636,8 +677,8 @@ public abstract class EcoPlugin extends JavaPlugin implements PluginLike {
      * @param <T>        The proxy type.
      * @return The proxy.
      */
-    public final <T extends AbstractProxy> T getProxy(@NotNull final Class<T> proxyClass) {
-        Validate.notNull(proxyFactory, "Plugin does not support proxy!");
+    public final <T> T getProxy(@NotNull final Class<T> proxyClass) {
+        Validate.notNull(proxyFactory, "Plugin does not support proxies!");
 
         return proxyFactory.getProxy(proxyClass);
     }
@@ -655,7 +696,7 @@ public abstract class EcoPlugin extends JavaPlugin implements PluginLike {
     public final FileConfiguration getConfig() {
         this.getLogger().warning("Call to default config method in eco plugin!");
 
-        return this.getConfigYml().getBukkitHandle();
+        return Objects.requireNonNull(this.getConfigYml().toBukkit());
     }
 
     /**

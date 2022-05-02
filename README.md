@@ -29,7 +29,7 @@ and many more.
 
 # For server owners
 - Requires ProtocolLib to be installed: get the latest version [here](https://www.spigotmc.org/resources/protocollib.1997/)
-- Supports 1.16.5+
+- Supports 1.17+
 
 ## Downloads
 
@@ -39,7 +39,7 @@ and many more.
 # For developers
 
 ## Javadoc
-The 6.13.0 Javadoc can be found [here](https://javadoc.jitpack.io/com/willfp/eco/6.13.0/javadoc/)
+The 6.27.2 Javadoc can be found [here](https://javadoc.jitpack.io/com/willfp/eco/6.27.2/javadoc/)
 
 ## Plugin Information
 
@@ -68,7 +68,7 @@ dependencies {
 }
 ```
 
-Replace `Tag` with a release tag for eco, eg `6.13.0`.
+Replace `Tag` with a release tag for eco, eg `6.27.2`.
 
 Maven:
 
@@ -88,7 +88,7 @@ Maven:
 </dependency>
 ```
 
-Replace `Tag` with a release tag for eco, eg `6.13.0`.
+Replace `Tag` with a release tag for eco, eg `6.27.2`.
 
 ## Build locally:
 

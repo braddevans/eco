@@ -9,6 +9,8 @@ mysql:
   # very high numbers can cause issues with OS configuration. If writes are taking
   # too long, increase this value.
   threads: 2
+  # The maximum number of MySQL connections.
+  connections: 10
   # If read operations should be ran in the thread pool. Runs on main thread by default.
   async-reads: false
   host: localhost
@@ -25,10 +27,6 @@ villager-display-fix: false
 # Disable it if it changes drop mechanics too much for you.
 use-fast-collated-drops: true
 
-# bStats is important and you should keep it enabled.
-# This option is only here because of compliance with data protection laws.
-enable-bstats: true
-
 # Some plugins use their own item display systems (eg Triton)
 # And must be run after eco. Don't enable this unless you run a conflicting plugin
 # and have been told to enable it.
@@ -42,6 +40,17 @@ use-display-frame: true
 # Time to live for a display frame. In other words, this is how frequent (in ticks)
 # that display frames will be cleared / deleted.
 display-frame-ttl: 17
+
+# The default bukkit NamespacedKey creation can cause decent amounts of lag under
+# load due to the use of regex validation in the constructor. eco has its own system
+# to create NamespacedKeys, however it can be unsafe as it skips most validation checks.
+# If you encounter any bugs with this, then enable this option - however it will come
+# at a performance penalty.
+use-safer-namespacedkey-creation: false
+
+# If the stack traces of extensions that failed to load should be logged. Disabled by
+# default to prevent users from reporting bugs. Enable if you're a developer.
+log-full-extension-errors: false
 
 # Window items packets have the option to be run asynchronously. This may cause
 # some bugs and is considered experimental, however it has been tested without
@@ -66,14 +75,14 @@ async-display:
     # If emergency async should be used.
     enabled: true
     # Below this TPS value, emergency async display will be used.
-    cutoff: 18
+    cutoff: 17
 
   # If players with a large amount of display packets should have their processing
   # done asynchronously. This will help if a player is trying to crash the server
   # by overloading the display system.
   ratelimit:
     # If rate limit async display should be used.
-    enabled: true
+    enabled: false
     # The amount of window items packets per timeframe needed to enable async display
     # for a specified player.
     cutoff: 4

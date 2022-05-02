@@ -1,11 +1,15 @@
 package com.willfp.eco.core.config.wrapper;
 
+import com.willfp.eco.core.config.ConfigType;
 import com.willfp.eco.core.config.interfaces.Config;
+import com.willfp.eco.core.placeholder.InjectablePlaceholder;
 import com.willfp.eco.util.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Configs from eco have an internal implementation,
@@ -15,6 +19,7 @@ import java.util.List;
  *
  * @param <T> The type of the handle.
  */
+@SuppressWarnings({"MethodDoesntCallSuperMethod", "removal"})
 public abstract class ConfigWrapper<T extends Config> implements Config {
     /**
      * Configs from eco have an internal implementation,
@@ -38,6 +43,7 @@ public abstract class ConfigWrapper<T extends Config> implements Config {
     }
 
     @Override
+    @Deprecated(since = "6.31.1", forRemoval = true)
     public void clearCache() {
         handle.clearCache();
     }
@@ -58,6 +64,12 @@ public abstract class ConfigWrapper<T extends Config> implements Config {
     }
 
     @Override
+    public @NotNull List<String> recurseKeys(@NotNull final Set<String> found,
+                                             @NotNull final String root) {
+        return handle.recurseKeys(found, root);
+    }
+
+    @Override
     public @Nullable Object get(@NotNull final String path) {
         return handle.get(path);
     }
@@ -69,18 +81,8 @@ public abstract class ConfigWrapper<T extends Config> implements Config {
     }
 
     @Override
-    public @NotNull Config getSubsection(@NotNull final String path) {
-        return handle.getSubsection(path);
-    }
-
-    @Override
     public @Nullable Config getSubsectionOrNull(@NotNull final String path) {
         return handle.getSubsectionOrNull(path);
-    }
-
-    @Override
-    public int getInt(@NotNull final String path) {
-        return handle.getInt(path);
     }
 
     @Override
@@ -89,24 +91,8 @@ public abstract class ConfigWrapper<T extends Config> implements Config {
     }
 
     @Override
-    public int getInt(@NotNull final String path,
-                      final int def) {
-        return handle.getInt(path, def);
-    }
-
-    @Override
-    public @NotNull List<Integer> getInts(@NotNull final String path) {
-        return handle.getInts(path);
-    }
-
-    @Override
     public @Nullable List<Integer> getIntsOrNull(@NotNull final String path) {
         return handle.getIntsOrNull(path);
-    }
-
-    @Override
-    public boolean getBool(@NotNull final String path) {
-        return handle.getBool(path);
     }
 
     @Override
@@ -115,21 +101,8 @@ public abstract class ConfigWrapper<T extends Config> implements Config {
     }
 
     @Override
-    public @NotNull List<Boolean> getBools(@NotNull final String path) {
-        return handle.getBools(path);
-    }
-
-    @Override
     public @Nullable List<Boolean> getBoolsOrNull(@NotNull final String path) {
         return handle.getBoolsOrNull(path);
-    }
-
-
-    @Override
-    public @NotNull String getString(@NotNull final String path,
-                                     final boolean format,
-                                     @NotNull final StringUtils.FormatOption option) {
-        return handle.getString(path, format, option);
     }
 
     @Override
@@ -140,22 +113,10 @@ public abstract class ConfigWrapper<T extends Config> implements Config {
     }
 
     @Override
-    public @NotNull List<String> getStrings(@NotNull final String path,
-                                            final boolean format,
-                                            @NotNull final StringUtils.FormatOption option) {
-        return handle.getStrings(path, format, option);
-    }
-
-    @Override
     public @Nullable List<String> getStringsOrNull(@NotNull final String path,
                                                    final boolean format,
                                                    @NotNull final StringUtils.FormatOption option) {
         return handle.getStringsOrNull(path, format, option);
-    }
-
-    @Override
-    public double getDouble(@NotNull final String path) {
-        return handle.getDouble(path);
     }
 
     @Override
@@ -164,18 +125,8 @@ public abstract class ConfigWrapper<T extends Config> implements Config {
     }
 
     @Override
-    public @NotNull List<Double> getDoubles(@NotNull final String path) {
-        return handle.getDoubles(path);
-    }
-
-    @Override
     public @Nullable List<Double> getDoublesOrNull(@NotNull final String path) {
         return handle.getDoublesOrNull(path);
-    }
-
-    @Override
-    public @NotNull List<? extends Config> getSubsections(@NotNull final String path) {
-        return handle.getSubsections(path);
     }
 
     @Override
@@ -186,6 +137,31 @@ public abstract class ConfigWrapper<T extends Config> implements Config {
     @Override
     public Config clone() {
         return handle.clone();
+    }
+
+    @Override
+    public @NotNull ConfigType getType() {
+        return handle.getType();
+    }
+
+    @Override
+    public void addInjectablePlaceholder(@NotNull final Iterable<InjectablePlaceholder> placeholders) {
+        handle.addInjectablePlaceholder(placeholders);
+    }
+
+    @Override
+    public @NotNull List<InjectablePlaceholder> getPlaceholderInjections() {
+        return handle.getPlaceholderInjections();
+    }
+
+    @Override
+    public void clearInjectedPlaceholders() {
+        handle.clearInjectedPlaceholders();
+    }
+
+    @Override
+    public Map<String, Object> toMap() {
+        return this.handle.toMap();
     }
 
     /**

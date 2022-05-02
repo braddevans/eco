@@ -4,14 +4,14 @@ import com.palmergames.bukkit.towny.TownyAPI
 import com.palmergames.bukkit.towny.TownyUniverse
 import com.palmergames.bukkit.towny.`object`.TownyPermission
 import com.palmergames.bukkit.towny.utils.PlayerCacheUtil
-import com.willfp.eco.core.integrations.antigrief.AntigriefWrapper
+import com.willfp.eco.core.integrations.antigrief.AntigriefIntegration
 import org.bukkit.Location
 import org.bukkit.Material
 import org.bukkit.block.Block
 import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Player
 
-class AntigriefTowny : AntigriefWrapper {
+class AntigriefTowny : AntigriefIntegration {
     override fun canBreakBlock(
         player: Player,
         block: Block
@@ -69,12 +69,16 @@ class AntigriefTowny : AntigriefWrapper {
         return townBlock.permissions.pvp
     }
 
+    override fun canPickupItem(player: Player, location: Location): Boolean {
+        return true
+    }
+
     override fun getPluginName(): String {
         return "Towny"
     }
 
     override fun equals(other: Any?): Boolean {
-        if (other !is AntigriefWrapper) {
+        if (other !is AntigriefIntegration) {
             return false
         }
 

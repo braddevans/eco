@@ -2,9 +2,11 @@ package com.willfp.eco.core;
 
 import com.willfp.eco.core.config.updating.ConfigHandler;
 import com.willfp.eco.core.config.wrapper.ConfigFactory;
-import com.willfp.eco.core.data.PlayerProfileHandler;
+import com.willfp.eco.core.data.ExtendedPersistentDataContainer;
+import com.willfp.eco.core.data.ProfileHandler;
 import com.willfp.eco.core.data.keys.KeyRegistry;
 import com.willfp.eco.core.drops.DropQueueFactory;
+import com.willfp.eco.core.entities.ai.EntityController;
 import com.willfp.eco.core.events.EventManager;
 import com.willfp.eco.core.extensions.ExtensionLoader;
 import com.willfp.eco.core.factory.MetadataValueFactory;
@@ -15,10 +17,14 @@ import com.willfp.eco.core.gui.GUIFactory;
 import com.willfp.eco.core.integrations.placeholder.PlaceholderIntegration;
 import com.willfp.eco.core.proxy.Cleaner;
 import com.willfp.eco.core.proxy.ProxyFactory;
-import com.willfp.eco.core.requirement.RequirementFactory;
 import com.willfp.eco.core.scheduling.Scheduler;
 import net.kyori.adventure.platform.bukkit.BukkitAudiences;
+import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.Mob;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataContainer;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -202,14 +208,6 @@ public interface Handler {
     void registerBStats(@NotNull EcoPlugin plugin);
 
     /**
-     * Get the requirement factory.
-     *
-     * @return The factory.
-     */
-    @NotNull
-    RequirementFactory getRequirementFactory();
-
-    /**
      * Get Adventure audiences.
      *
      * @return The audiences.
@@ -230,5 +228,77 @@ public interface Handler {
      *
      * @return The handler.
      */
-    PlayerProfileHandler getPlayerProfileHandler();
+    @NotNull
+    ProfileHandler getProfileHandler();
+
+    /**
+     * Create dummy entity - never spawned, exists purely in code.
+     *
+     * @param location The location.
+     * @return The entity.
+     */
+    @NotNull
+    Entity createDummyEntity(@NotNull Location location);
+
+    /**
+     * Create a {@link NamespacedKey} quickly
+     * <p>
+     * Bypasses the constructor, allowing for the creation of invalid keys,
+     * therefore this is considered unsafe and should only be called after
+     * the key has been confirmed to be valid.
+     *
+     * @param namespace The namespace.
+     * @param key       The key.
+     * @return The key.
+     */
+    @NotNull
+    NamespacedKey createNamespacedKey(@NotNull String namespace,
+                                      @NotNull String key);
+
+    /**
+     * Return or get props for a plugin.
+     *
+     * @param existing The existing constructor props.
+     * @param plugin   The plugin.
+     * @return The props.
+     */
+    @NotNull
+    PluginProps getProps(@Nullable PluginProps existing,
+                         @NotNull Class<? extends EcoPlugin> plugin);
+
+    /**
+     * Format a string with MiniMessage.
+     *
+     * @param message The message.
+     * @return The formatted string.
+     */
+    @NotNull
+    String formatMiniMessage(@NotNull String message);
+
+    /**
+     * Create controlled entity from a mob.
+     *
+     * @param mob The mob.
+     * @param <T> The mob type.
+     * @return The controlled entity.
+     */
+    @NotNull
+    <T extends Mob> EntityController<T> createEntityController(@NotNull T mob);
+
+    /**
+     * Adapt base PDC to extended PDC.
+     *
+     * @param container The container.
+     * @return The extended container.
+     */
+    @NotNull
+    ExtendedPersistentDataContainer adaptPdc(@NotNull PersistentDataContainer container);
+
+    /**
+     * Create new PDC.
+     *
+     * @return The container.
+     */
+    @NotNull
+    PersistentDataContainer newPdc();
 }

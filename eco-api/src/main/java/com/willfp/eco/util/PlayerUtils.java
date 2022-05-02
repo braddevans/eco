@@ -5,12 +5,21 @@ import com.willfp.eco.core.Prerequisite;
 import com.willfp.eco.core.data.PlayerProfile;
 import com.willfp.eco.core.data.keys.PersistentDataKey;
 import com.willfp.eco.core.data.keys.PersistentDataKeyType;
+import com.willfp.eco.core.integrations.anticheat.AnticheatManager;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.platform.bukkit.BukkitAudiences;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.AnimalTamer;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
+import org.bukkit.entity.Tameable;
+import org.bukkit.projectiles.ProjectileSource;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.function.Consumer;
 
 /**
  * Utilities / API methods for players.
@@ -105,6 +114,71 @@ public final class PlayerUtils {
     public static void updateSavedDisplayName(@NotNull final Player player) {
         PlayerProfile profile = PlayerProfile.load(player);
         profile.write(PLAYER_NAME_KEY, player.getDisplayName());
+    }
+
+    /**
+     * Run something with the player exempted.
+     *
+     * @param player The player.
+     * @param action The action.
+     */
+    public static void runExempted(@NotNull final Player player,
+                                   @NotNull final Consumer<Player> action) {
+        try {
+            AnticheatManager.exemptPlayer(player);
+            action.accept(player);
+        } finally {
+            AnticheatManager.unexemptPlayer(player);
+        }
+    }
+
+    /**
+     * Run something with the player exempted.
+     *
+     * @param player The player.
+     * @param action The action.
+     */
+    public static void runExempted(@NotNull final Player player,
+                                   @NotNull final Runnable action) {
+        try {
+            AnticheatManager.exemptPlayer(player);
+            action.run();
+        } finally {
+            AnticheatManager.unexemptPlayer(player);
+        }
+    }
+
+    /**
+     * Try an entity as a player.
+     *
+     * @param entity The entity.
+     * @return The player, or null if no player could be found.
+     */
+    @Nullable
+    public static Player tryAsPlayer(@Nullable final Entity entity) {
+        if (entity == null) {
+            return null;
+        }
+
+        if (entity instanceof Player player) {
+            return player;
+        }
+
+        if (entity instanceof Projectile projectile) {
+            ProjectileSource shooter = projectile.getShooter();
+            if (shooter instanceof Player player) {
+                return player;
+            }
+        }
+
+        if (entity instanceof Tameable tameable) {
+            AnimalTamer tamer = tameable.getOwner();
+            if (tamer instanceof Player player) {
+                return player;
+            }
+        }
+
+        return null;
     }
 
     private PlayerUtils() {

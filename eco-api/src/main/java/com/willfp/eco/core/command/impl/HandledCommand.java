@@ -1,14 +1,12 @@
 package com.willfp.eco.core.command.impl;
 
 import com.willfp.eco.core.EcoPlugin;
-import com.willfp.eco.core.PluginDependent;
 import com.willfp.eco.core.command.CommandBase;
-import com.willfp.eco.core.command.CommandHandler;
-import com.willfp.eco.core.command.TabCompleteHandler;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.util.StringUtil;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -23,7 +21,13 @@ import java.util.stream.Collectors;
  * in order to execute the command-specific code. It's essentially an internal
  * layer, hence why it's a package-private class.
  */
-abstract class HandledCommand extends PluginDependent<EcoPlugin> implements CommandBase {
+@SuppressWarnings({"DeprecatedIsStillUsed", "removal"})
+abstract class HandledCommand implements CommandBase {
+    /**
+     * The plugin.
+     */
+    private final EcoPlugin plugin;
+
     /**
      * The name of the command.
      */
@@ -46,14 +50,16 @@ abstract class HandledCommand extends PluginDependent<EcoPlugin> implements Comm
     /**
      * The actual code to be executed in the command.
      */
-    private CommandHandler handler = (sender, args) -> {
-        // Do nothing by default
-    };
+    @Deprecated
+    @Nullable
+    private com.willfp.eco.core.command.CommandHandler handler = null;
 
     /**
      * The tab completion code to be executed in the command.
      */
-    private TabCompleteHandler tabCompleter = (sender, args) -> new ArrayList<>();
+    @Deprecated
+    @Nullable
+    private com.willfp.eco.core.command.TabCompleteHandler tabCompleter = null;
 
     /**
      * All subcommands for the command.
@@ -74,7 +80,7 @@ abstract class HandledCommand extends PluginDependent<EcoPlugin> implements Comm
                    @NotNull final String name,
                    @NotNull final String permission,
                    final boolean playersOnly) {
-        super(plugin);
+        this.plugin = plugin;
         this.name = name;
         this.permission = permission;
         this.playersOnly = playersOnly;
@@ -92,6 +98,16 @@ abstract class HandledCommand extends PluginDependent<EcoPlugin> implements Comm
         subcommands.add(subcommand);
 
         return this;
+    }
+
+    /**
+     * Get the plugin.
+     *
+     * @return The plugin.
+     */
+    @Override
+    public EcoPlugin getPlugin() {
+        return this.plugin;
     }
 
     /**
@@ -120,7 +136,16 @@ abstract class HandledCommand extends PluginDependent<EcoPlugin> implements Comm
             }
         }
 
-        this.getHandler().onExecute(sender, Arrays.asList(args));
+        if (this.isPlayersOnly() && !(sender instanceof Player)) {
+            sender.sendMessage(this.getPlugin().getLangYml().getMessage("not-player"));
+            return;
+        }
+
+        if (this.getHandler() != null) {
+            this.getHandler().onExecute(sender, Arrays.asList(args));
+        } else {
+            this.onExecute(sender, Arrays.asList(args));
+        }
     }
 
     /**
@@ -167,7 +192,11 @@ abstract class HandledCommand extends PluginDependent<EcoPlugin> implements Comm
             }
         }
 
-        return this.getTabCompleter().tabComplete(sender, Arrays.asList(args));
+        if (this.getTabCompleter() != null) {
+            return this.getTabCompleter().tabComplete(sender, Arrays.asList(args));
+        } else {
+            return this.tabComplete(sender, Arrays.asList(args));
+        }
     }
 
     /**
@@ -181,11 +210,6 @@ abstract class HandledCommand extends PluginDependent<EcoPlugin> implements Comm
     public static boolean canExecute(@NotNull final CommandSender sender,
                                      @NotNull final CommandBase command,
                                      @NotNull final EcoPlugin plugin) {
-        if (command.isPlayersOnly() && !(sender instanceof Player)) {
-            sender.sendMessage(plugin.getLangYml().getMessage("not-player"));
-            return false;
-        }
-
         if (!sender.hasPermission(command.getPermission()) && sender instanceof Player) {
             sender.sendMessage(plugin.getLangYml().getNoPermission());
             return false;
@@ -222,24 +246,6 @@ abstract class HandledCommand extends PluginDependent<EcoPlugin> implements Comm
     }
 
     /**
-     * Get the actual code to be executed in the command.
-     *
-     * @return The code.
-     */
-    public CommandHandler getHandler() {
-        return this.handler;
-    }
-
-    /**
-     * Get the tab completion code to be executed in the command.
-     *
-     * @return The code.
-     */
-    public TabCompleteHandler getTabCompleter() {
-        return this.tabCompleter;
-    }
-
-    /**
      * Get the subcommands of the command.
      *
      * @return The subcommands.
@@ -248,21 +254,27 @@ abstract class HandledCommand extends PluginDependent<EcoPlugin> implements Comm
         return this.subcommands;
     }
 
-    /**
-     * Set the command handler.
-     *
-     * @param handler The handler.
-     */
-    public void setHandler(@NotNull final CommandHandler handler) {
+    @Deprecated(forRemoval = true)
+    @Override
+    public @Nullable com.willfp.eco.core.command.CommandHandler getHandler() {
+        return this.handler;
+    }
+
+    @Deprecated(forRemoval = true)
+    @Override
+    public @Nullable com.willfp.eco.core.command.TabCompleteHandler getTabCompleter() {
+        return this.tabCompleter;
+    }
+
+    @Deprecated(forRemoval = true)
+    @Override
+    public void setHandler(@Nullable final com.willfp.eco.core.command.CommandHandler handler) {
         this.handler = handler;
     }
 
-    /**
-     * Set the tab completer.
-     *
-     * @param tabCompleter The tab completer.
-     */
-    public void setTabCompleter(@NotNull final TabCompleteHandler tabCompleter) {
+    @Deprecated(forRemoval = true)
+    @Override
+    public void setTabCompleter(@Nullable final com.willfp.eco.core.command.TabCompleteHandler tabCompleter) {
         this.tabCompleter = tabCompleter;
     }
 }

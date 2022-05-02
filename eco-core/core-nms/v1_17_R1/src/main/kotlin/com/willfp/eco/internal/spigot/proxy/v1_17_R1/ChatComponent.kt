@@ -62,6 +62,7 @@ class ChatComponent : ChatComponentProxy {
         }
 
         val newShowItem = showItem.nbt(
+            @Suppress("UnstableApiUsage", "DEPRECATION")
             BinaryTagHolder.of(
                 CraftItemStack.asNMSCopy(
                     Display.display(

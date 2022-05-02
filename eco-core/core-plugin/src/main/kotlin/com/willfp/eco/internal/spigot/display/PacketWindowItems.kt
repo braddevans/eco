@@ -6,11 +6,11 @@ import com.comphenix.protocol.events.PacketContainer
 import com.comphenix.protocol.events.PacketEvent
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import com.willfp.eco.core.AbstractPacketAdapter
+import com.willfp.eco.core.Eco
 import com.willfp.eco.core.EcoPlugin
 import com.willfp.eco.core.display.Display
-import com.willfp.eco.core.fast.FastItemStack
+import com.willfp.eco.core.items.HashedItem
 import com.willfp.eco.internal.spigot.display.frame.DisplayFrame
-import com.willfp.eco.internal.spigot.display.frame.HashedItem
 import com.willfp.eco.internal.spigot.display.frame.lastDisplayFrame
 import com.willfp.eco.util.ServerUtils
 import org.bukkit.entity.Player
@@ -47,34 +47,35 @@ class PacketWindowItems(plugin: EcoPlugin) : AbstractPacketAdapter(plugin, Packe
         handleRateLimit(player)
 
         if (usingAsync(player)) {
-            val newPacket = packet.shallowClone()
-
-            fun modifyAndSend(itemStacks: MutableList<ItemStack>, windowId: Int, player: Player) {
-                modifyWindowItems(itemStacks, windowId, player)
-
-                newPacket.itemListModifier.write(0, itemStacks)
-
-                ignorePacketList.add(player.name)
-
-                ProtocolLibrary.getProtocolManager().sendServerPacket(player, newPacket)
-            }
+            val newPacket = packet.deepClone()
 
             executor.execute {
-                try {
-                    modifyAndSend(itemStacks, windowId, player)
-                } catch (e: Exception) {
-                    if (this.getPlugin().configYml.getBool("async-display.log-errors")) {
-                        this.getPlugin().logger.warning("Error happened in async processing! Disable async display (/plugins/eco/config.yml)" +
-                                "if this is a frequent issue. (Remember to disable ratelimit and emergency too)")
-                    }
-
-                    this.getPlugin().scheduler.run {
-                        modifyAndSend(itemStacks, windowId, player)
-                    }
-                }
+                runCatchingWithLogs { modifyAndSend(newPacket, itemStacks, windowId, player) }
             }
         } else {
-            packet.itemListModifier.write(0, modifyWindowItems(itemStacks, windowId, player))
+            modifyPacket(packet, itemStacks, windowId, player)
+        }
+    }
+
+    private fun modifyPacket(
+        packet: PacketContainer,
+        itemStacks: MutableList<ItemStack>,
+        windowId: Int,
+        player: Player
+    ) {
+        packet.itemListModifier.write(0, modifyWindowItems(itemStacks, windowId, player))
+    }
+
+    private fun modifyAndSend(
+        packet: PacketContainer,
+        itemStacks: MutableList<ItemStack>,
+        windowId: Int,
+        player: Player
+    ) {
+        modifyPacket(packet, itemStacks, windowId, player)
+        ignorePacketList.add(player.name)
+        this.getPlugin().scheduler.run {
+            runCatchingWithLogs { ProtocolLibrary.getProtocolManager().sendServerPacket(player, packet) }
         }
     }
 
@@ -100,7 +101,7 @@ class PacketWindowItems(plugin: EcoPlugin) : AbstractPacketAdapter(plugin, Packe
     }
 
     private fun usingAsync(player: Player): Boolean {
-        if (this.getPlugin().configYml.getStrings("async-display.disable-on-types", false)
+        if (this.getPlugin().configYml.getStrings("async-display.disable-on-types")
                 .map { it.lowercase() }.contains(player.openInventory.type.name.lowercase())
         ) {
             return false
@@ -136,8 +137,7 @@ class PacketWindowItems(plugin: EcoPlugin) : AbstractPacketAdapter(plugin, Packe
             val frameMap = mutableMapOf<Byte, HashedItem>()
 
             for (index in itemStacks.indices) {
-                frameMap[index.toByte()] =
-                    HashedItem(FastItemStack.wrap(itemStacks[index]).hashCode(), itemStacks[index])
+                frameMap[index.toByte()] = HashedItem.of(itemStacks[index])
             }
 
             val newFrame = DisplayFrame(frameMap)
@@ -160,5 +160,16 @@ class PacketWindowItems(plugin: EcoPlugin) : AbstractPacketAdapter(plugin, Packe
         }
 
         return itemStacks
+    }
+}
+
+private inline fun <T> runCatchingWithLogs(toRun: () -> T): Result<T> {
+    return runCatching { toRun() }.onFailure {
+        if (Eco.getHandler().ecoPlugin.configYml.getBool("async-display.log-errors")) {
+            Eco.getHandler().ecoPlugin.logger.warning(
+                "Error happened in async processing! Disable async display (/plugins/eco/config.yml)" +
+                        "if this is a frequent issue. (Remember to disable ratelimit and emergency too)"
+            )
+        }
     }
 }

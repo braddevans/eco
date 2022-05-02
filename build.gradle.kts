@@ -1,8 +1,19 @@
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.6.21")
+    }
+}
+
 plugins {
     id("java-library")
-    id("com.github.johnrengelman.shadow") version "7.0.0"
+    id("com.github.johnrengelman.shadow") version "7.1.2"
     id("maven-publish")
     id("java")
+    kotlin("jvm") version "1.6.21"
 }
 
 dependencies {
@@ -10,9 +21,9 @@ dependencies {
     implementation(project(":eco-core:core-plugin"))
     implementation(project(":eco-core:core-proxy"))
     implementation(project(":eco-core:core-backend"))
-    implementation(project(":eco-core:core-nms:v1_16_R3"))
     implementation(project(path = ":eco-core:core-nms:v1_17_R1", configuration = "reobf"))
-    implementation(project(":eco-core:core-nms:v1_18_R1"))
+    implementation(project(path = ":eco-core:core-nms:v1_18_R1", configuration = "reobf"))
+    implementation(project(path = ":eco-core:core-nms:v1_18_R2", configuration = "reobf"))
 }
 
 allprojects {
@@ -20,6 +31,7 @@ allprojects {
     apply(plugin = "java-library")
     apply(plugin = "maven-publish")
     apply(plugin = "com.github.johnrengelman.shadow")
+    apply(plugin = "kotlin")
 
     repositories {
         mavenCentral()
@@ -35,7 +47,7 @@ allprojects {
         // NMS (for jitpack compilation)
         maven("https://repo.codemc.org/repository/nms/")
 
-        // bStats, mcMMO, BentoBox
+        // mcMMO, BentoBox
         maven("https://repo.codemc.org/repository/maven-public/")
 
         // Spigot API, Bungee API
@@ -59,21 +71,38 @@ allprojects {
         // CombatLogX
         maven("https://nexus.sirblobman.xyz/repository/public/")
 
-        // IridiumSkyblock
-        maven("https://nexus.iridiumdevelopment.net/repository/maven-releases/")
+        // MythicMobs
+        maven("https://mvn.lumine.io/repository/maven-public/")
+
+        // Crunch
+        maven("https://redempt.dev")
+
+        // LibsDisguises
+        maven("https://repo.md-5.net/content/groups/public/")
     }
 
     dependencies {
+        // Kotlin
+        implementation(kotlin("stdlib", version = "1.6.21"))
+
+        // Included in spigot jar, no need to move to implementation
         compileOnly("org.jetbrains:annotations:23.0.0")
+        compileOnly("com.google.guava:guava:31.1-jre")
 
         // Test
-        testImplementation("org.junit.jupiter:junit-jupiter-api:5.8.1")
-        testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.8.1")
-        
+        testImplementation("org.junit.jupiter:junit-jupiter-api:5.8.2")
+        testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.8.2")
+
         // Adventure
-        compileOnly("net.kyori:adventure-api:4.9.3")
-        compileOnly("net.kyori:adventure-text-serializer-gson:4.9.3")
-        compileOnly("net.kyori:adventure-text-serializer-legacy:4.9.3")
+        implementation("net.kyori:adventure-api:4.10.1")
+        implementation("net.kyori:adventure-text-serializer-gson:4.10.1") {
+            exclude("com.google.code.gson", "gson") // Prevent shading into the jar
+        }
+        implementation("net.kyori:adventure-text-serializer-legacy:4.10.1")
+
+        // Other
+        implementation("com.github.ben-manes.caffeine:caffeine:3.0.6")
+        implementation("org.apache.maven:maven-artifact:3.8.5")
     }
 
     tasks.withType<JavaCompile> {
@@ -88,12 +117,48 @@ allprojects {
         exclude(group = "org.spongepowered", module = "configurate-hocon")
         exclude(group = "com.darkblade12", module = "particleeffect")
         exclude(group = "com.github.cryptomorin", module = "XSeries")
+        exclude(group = "net.wesjd", module = "anvilgui")
+        exclude(group = "org.slf4j", module = "slf4j-api")
+    }
+
+    configurations.testImplementation {
+        setExtendsFrom(listOf(configurations.compileOnly.get(), configurations.implementation.get()))
     }
 
     tasks {
+        compileKotlin {
+            kotlinOptions {
+                jvmTarget = "17"
+            }
+            targetCompatibility = "17"
+            sourceCompatibility = "17"
+        }
+
         shadowJar {
-            relocate("org.bstats", "com.willfp.eco.shaded.bstats")
-            relocate("net.kyori.adventure.text.minimessage", "com.willfp.eco.shaded.minimessage")
+            relocate("org.bstats", "com.willfp.eco.libs.bstats")
+            relocate("redempt.crunch", "com.willfp.eco.libs.crunch")
+            relocate("org.apache.commons.lang3", "com.willfp.eco.libs.lang3")
+            relocate("org.apache.maven", "com.willfp.eco.libs.maven")
+            relocate("org.checkerframework", "com.willfp.eco.libs.checkerframework")
+            relocate("org.intellij", "com.willfp.eco.libs.intellij")
+            relocate("org.jetbrains.annotations", "com.willfp.eco.libs.jetbrains.annotations")
+            //relocate("org.jetbrains.exposed", "com.willfp.eco.libs.exposed")
+            relocate("org.objenesis", "com.willfp.eco.libs.objenesis")
+            relocate("org.reflections", "com.willfp.eco.libs.reflections")
+            relocate("javassist", "com.willfp.eco.libs.javassist")
+            relocate("javax.annotation", "com.willfp.eco.libs.annotation")
+            relocate("com.google.errorprone", "com.willfp.eco.libs.errorprone")
+            relocate("com.google.j2objc", "com.willfp.eco.libs.j2objc")
+            relocate("com.google.thirdparty", "com.willfp.eco.libs.google.thirdparty")
+            relocate("com.google.protobuf", "com.willfp.eco.libs.google.protobuf") // No I don't know either
+            relocate("google.protobuf", "com.willfp.eco.libs.protobuf") // Still don't know
+            relocate("com.zaxxer.hikari", "com.willfp.eco.libs.hikari")
+            //relocate("com.mysql", "com.willfp.eco.libs.mysql")
+
+            /*
+            Kotlin and caffeine are not shaded so that they can be accessed directly by eco plugins.
+            Also, not relocating adventure, because it's a pain in the ass, and it doesn't *seem* to be causing loader constraint violations.
+             */
         }
 
         compileJava {

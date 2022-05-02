@@ -1,15 +1,11 @@
 package com.willfp.eco.core.integrations.customitems;
 
-import com.willfp.eco.core.integrations.Integration;
-
 /**
  * Wrapper class for custom item integrations.
+ *
+ * @deprecated Use CustomItemsIntegration instead.
  */
-public interface CustomItemsWrapper extends Integration {
-    /**
-     * Register all the custom items for a specific plugin into eco.
-     *
-     * @see com.willfp.eco.core.items.Items
-     */
-    void registerAllItems();
+@Deprecated(since = "6.35.0", forRemoval = true)
+public interface CustomItemsWrapper extends CustomItemsIntegration {
+
 }

@@ -1,7 +1,7 @@
 package com.willfp.eco.internal.spigot.integrations.customitems
 
 import com.willfp.eco.core.EcoPlugin
-import com.willfp.eco.core.integrations.customitems.CustomItemsWrapper
+import com.willfp.eco.core.integrations.customitems.CustomItemsIntegration
 import com.willfp.eco.core.items.CustomItem
 import com.willfp.eco.core.items.Items
 import com.willfp.eco.core.items.TestableItem
@@ -16,14 +16,14 @@ import java.util.function.Predicate
 
 class CustomItemsHeadDatabase(
     plugin: EcoPlugin
-) : CustomItemsWrapper {
+) : CustomItemsIntegration {
     private val provider = HeadDBProvider()
 
     init {
         plugin.eventManager.registerListener(provider)
     }
 
-    override fun registerAllItems() {
+    override fun registerProvider() {
         Items.registerItemProvider(HeadDBProvider())
     }
 
@@ -35,7 +35,7 @@ class CustomItemsHeadDatabase(
         private lateinit var api: HeadDatabaseAPI
 
         override fun provideForKey(key: String): TestableItem? {
-            if (this::api.isInitialized) {
+            if (!this::api.isInitialized) {
                 return null
             }
 

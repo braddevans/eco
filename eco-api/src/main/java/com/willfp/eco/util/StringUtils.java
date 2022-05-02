@@ -1,24 +1,29 @@
 package com.willfp.eco.util;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.willfp.eco.core.Prerequisite;
+import com.google.gson.JsonSyntaxException;
+import com.willfp.eco.core.Eco;
 import com.willfp.eco.core.integrations.placeholder.PlaceholderManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextDecoration;
-import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.md_5.bungee.api.ChatColor;
+import org.apache.commons.lang.Validate;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.awt.*;
+import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -59,6 +64,53 @@ public final class StringUtils {
             .build();
 
     /**
+     * GSON serializer.
+     */
+    private static final GsonComponentSerializer GSON_COMPONENT_SERIALIZER = GsonComponentSerializer.builder()
+            .emitLegacyHoverEvent()
+            .build();
+
+    /**
+     * String format cache.
+     */
+    private static final LoadingCache<String, String> STRING_FORMAT_CACHE = Caffeine.newBuilder()
+            .expireAfterAccess(10, TimeUnit.SECONDS)
+            .build(StringUtils::processFormatting);
+
+    /**
+     * Json -> Component Cache.
+     */
+    private static final Cache<String, Component> JSON_TO_COMPONENT = Caffeine.newBuilder()
+            .expireAfterAccess(10, TimeUnit.SECONDS)
+            .build();
+
+    /**
+     * Component -> Json Cache.
+     */
+    private static final Cache<Component, String> COMPONENT_TO_JSON = Caffeine.newBuilder()
+            .expireAfterAccess(10, TimeUnit.SECONDS)
+            .build();
+
+    /**
+     * Legacy -> Component Cache.
+     */
+    private static final Cache<String, Component> LEGACY_TO_COMPONENT = Caffeine.newBuilder()
+            .expireAfterAccess(10, TimeUnit.SECONDS)
+            .build();
+
+    /**
+     * Component -> Legacy Cache.
+     */
+    private static final Cache<Component, String> COMPONENT_TO_LEGACY = Caffeine.newBuilder()
+            .expireAfterAccess(10, TimeUnit.SECONDS)
+            .build();
+
+    /**
+     * Empty JSON.
+     */
+    private static final String EMPTY_JSON = GSON_COMPONENT_SERIALIZER.serialize(Component.empty());
+
+    /**
      * Color map.
      */
     private static final Map<String, ChatColor> COLOR_MAP = new ImmutableMap.Builder<String, ChatColor>()
@@ -73,6 +125,14 @@ public final class StringUtils {
             .put("§m", ChatColor.STRIKETHROUGH)
             .put("§k", ChatColor.MAGIC)
             .build();
+
+    /**
+     * Regex map for splitting values.
+     */
+    private static final LoadingCache<String, Pattern> SPACE_AROUND_CHARACTER = Caffeine.newBuilder()
+            .build(
+                    character -> Pattern.compile("( " + Pattern.quote(character) + " )")
+            );
 
     /**
      * Format a list of strings.
@@ -264,17 +324,21 @@ public final class StringUtils {
         if (option == FormatOption.WITH_PLACEHOLDERS) {
             processedMessage = PlaceholderManager.translatePlaceholders(processedMessage, player);
         }
+        return STRING_FORMAT_CACHE.get(processedMessage);
+    }
+
+    private static String processFormatting(@NotNull final String message) {
+        String processedMessage = message;
+        // Run MiniMessage first so it doesn't complain
+        processedMessage = translateMiniMessage(processedMessage);
         processedMessage = ChatColor.translateAlternateColorCodes('&', processedMessage);
         processedMessage = translateGradients(processedMessage);
         processedMessage = translateHexColorCodes(processedMessage);
-        if (Prerequisite.HAS_PAPER.isMet()) {
-            processedMessage = translateMiniMessage(processedMessage);
-        }
         return processedMessage;
     }
 
     private static String translateMiniMessage(@NotNull final String message) {
-        return LEGACY_COMPONENT_SERIALIZER.serialize(MiniMessage.get().parse(message));
+        return Eco.getHandler().formatMiniMessage(message);
     }
 
     private static String translateHexColorCodes(@NotNull final String message) {
@@ -367,9 +431,23 @@ public final class StringUtils {
      *
      * @param object The object to convert to string.
      * @return The object stringified.
+     * @deprecated Poorly named method. Use {@link StringUtils#toNiceString(Object)} instead.
      */
     @NotNull
+    @Deprecated(since = "6.26.0", forRemoval = true)
     public static String internalToString(@Nullable final Object object) {
+        return toNiceString(object);
+    }
+
+    /**
+     * Internal implementation of {@link String#valueOf}.
+     * Formats collections and doubles better.
+     *
+     * @param object The object to convert to string.
+     * @return The object stringified.
+     */
+    @NotNull
+    public static String toNiceString(@Nullable final Object object) {
         if (object == null) {
             return "null";
         }
@@ -381,7 +459,7 @@ public final class StringUtils {
         } else if (object instanceof Double) {
             return NumberUtils.format((Double) object);
         } else if (object instanceof Collection<?> c) {
-            return c.stream().map(StringUtils::internalToString).collect(Collectors.joining(", "));
+            return c.stream().map(StringUtils::toNiceString).collect(Collectors.joining(", "));
         } else {
             return String.valueOf(object);
         }
@@ -411,15 +489,7 @@ public final class StringUtils {
      */
     @NotNull
     public static String legacyToJson(@Nullable final String legacy) {
-        String processed = legacy;
-        if (legacy == null) {
-            processed = "";
-        }
-        return GsonComponentSerializer.gson().serialize(
-                Component.empty().decoration(TextDecoration.ITALIC, false).append(
-                        LEGACY_COMPONENT_SERIALIZER.deserialize(processed)
-                )
-        );
+        return componentToJson(toComponent(legacy));
     }
 
     /**
@@ -429,10 +499,54 @@ public final class StringUtils {
      * @return The legacy string.
      */
     @NotNull
-    public static String jsonToLegacy(@NotNull final String json) {
-        return LEGACY_COMPONENT_SERIALIZER.serialize(
-                GsonComponentSerializer.gson().deserialize(json)
-        );
+    public static String jsonToLegacy(@Nullable final String json) {
+        return toLegacy(jsonToComponent(json));
+    }
+
+    /**
+     * Convert Component to JSON String.
+     *
+     * @param component The Component.
+     * @return The JSON string.
+     */
+    @NotNull
+    public static String componentToJson(@Nullable final Component component) {
+        if (component == null) {
+            return EMPTY_JSON;
+        }
+
+        return COMPONENT_TO_JSON.get(component, it -> {
+            try {
+                return GSON_COMPONENT_SERIALIZER.serialize(
+                        Component.empty().decoration(TextDecoration.ITALIC, false).append(
+                                it
+                        )
+                );
+            } catch (JsonSyntaxException e) {
+                return GSON_COMPONENT_SERIALIZER.serialize(Component.empty());
+            }
+        });
+    }
+
+    /**
+     * Convert JSON String to Component.
+     *
+     * @param json The JSON String.
+     * @return The component.
+     */
+    @NotNull
+    public static Component jsonToComponent(@Nullable final String json) {
+        if (json == null || json.isEmpty()) {
+            return Component.empty();
+        }
+
+        return JSON_TO_COMPONENT.get(json, it -> {
+            try {
+                return GSON_COMPONENT_SERIALIZER.deserialize(it);
+            } catch (JsonSyntaxException e) {
+                return Component.empty();
+            }
+        });
     }
 
     /**
@@ -443,12 +557,7 @@ public final class StringUtils {
      */
     @NotNull
     public static Component toComponent(@Nullable final String legacy) {
-        String processed = legacy;
-        if (legacy == null) {
-            processed = "";
-        }
-
-        return LEGACY_COMPONENT_SERIALIZER.deserialize(processed);
+        return LEGACY_TO_COMPONENT.get(legacy == null ? "" : legacy, LEGACY_COMPONENT_SERIALIZER::deserialize);
     }
 
     /**
@@ -459,7 +568,123 @@ public final class StringUtils {
      */
     @NotNull
     public static String toLegacy(@NotNull final Component component) {
-        return LEGACY_COMPONENT_SERIALIZER.serialize(component);
+        return COMPONENT_TO_LEGACY.get(component, LEGACY_COMPONENT_SERIALIZER::serialize);
+    }
+
+    /**
+     * Parse string into tokens.
+     * <p>
+     * Handles quoted strings for names.
+     *
+     * @param lookup The lookup string.
+     * @return An array of tokens to be processed.
+     * @author Shawn (https://stackoverflow.com/questions/70606170/split-a-list-on-spaces-and-group-quoted-characters/70606653#70606653)
+     */
+    @NotNull
+    public static String[] parseTokens(@NotNull final String lookup) {
+        char[] chars = lookup.toCharArray();
+        List<String> tokens = new ArrayList<>();
+        StringBuilder tokenBuilder = new StringBuilder();
+        for (int i = 0; i < chars.length; i++) {
+            if (chars[i] == ' ') {
+                /*
+                Take the current value of the argument builder, append it to the
+                list of found tokens, and then clear it for the next argument.
+                 */
+                tokens.add(tokenBuilder.toString());
+                tokenBuilder.setLength(0);
+            } else if (chars[i] == '"') {
+                /*
+                Work until the next unescaped quote to handle quotes with
+                spaces in them - assumes the input string is well-formatted
+                 */
+                for (i++; chars[i] != '"'; i++) {
+                    /*
+                    If the found quote is escaped, ignore it in the parsing
+                     */
+                    if (chars[i] == '\\') {
+                        i++;
+                    }
+                    tokenBuilder.append(chars[i]);
+                }
+            } else {
+                /*
+                If it's a regular character, just append it to the current argument.
+                 */
+                tokenBuilder.append(chars[i]);
+            }
+        }
+        tokens.add(tokenBuilder.toString()); // Adds the last argument to the tokens.
+        return tokens.toArray(new String[0]);
+    }
+
+    /**
+     * Split input string around separator surrounded by spaces.
+     * <p>
+     * e.g. {@code splitAround("hello ? how are you", "?")} will split, but
+     * {@code splitAround("hello? how are you", "?")} will not.
+     *
+     * @param input     Input string.
+     * @param separator Separator.
+     * @return The split string.
+     */
+    @NotNull
+    public static String[] splitAround(@NotNull final String input,
+                                       @NotNull final String separator) {
+        return SPACE_AROUND_CHARACTER.get(separator).split(input);
+    }
+
+    /**
+     * Create progress bar.
+     *
+     * @param character        The bar character.
+     * @param bars             The number of bars.
+     * @param progress         The bar progress, between 0 and 1.
+     * @param completeFormat   The color of a complete bar section.
+     * @param inProgressFormat The color of an in-progress bar section.
+     * @param incompleteFormat The color of an incomplete bar section.
+     * @return The progress bar.
+     */
+    @NotNull
+    public static String createProgressBar(final char character,
+                                           final int bars,
+                                           final double progress,
+                                           @NotNull final String completeFormat,
+                                           @NotNull final String inProgressFormat,
+                                           @NotNull final String incompleteFormat) {
+        Validate.isTrue(progress >= 0 && progress <= 1, "Progress must be between 0 and 1!");
+        Validate.isTrue(bars > 1, "Must have at least 2 bars!");
+
+        String completeColor = format(completeFormat);
+        String inProgressColor = format(inProgressFormat);
+        String incompleteColor = format(incompleteFormat);
+
+        StringBuilder builder = new StringBuilder();
+
+        // Full bar special case.
+        if (progress == 1) {
+            builder.append(completeColor);
+            builder.append(String.valueOf(character).repeat(bars));
+            return builder.toString();
+        }
+
+        int completeBars = (int) Math.floor(progress * bars);
+        int incompleteBars = bars - completeBars - 1;
+
+        if (completeBars > 0) {
+            builder.append(completeColor)
+                    .append(String.valueOf(character).repeat(completeBars));
+        }
+
+        builder.append(inProgressColor)
+                .append(character);
+
+        if (incompleteBars > 0) {
+            builder.append(incompleteColor)
+                    .append(String.valueOf(character).repeat(incompleteBars));
+        }
+
+        return builder.toString();
     }
 
     /**

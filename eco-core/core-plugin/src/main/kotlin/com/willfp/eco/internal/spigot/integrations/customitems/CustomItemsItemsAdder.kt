@@ -1,6 +1,6 @@
 package com.willfp.eco.internal.spigot.integrations.customitems
 
-import com.willfp.eco.core.integrations.customitems.CustomItemsWrapper
+import com.willfp.eco.core.integrations.customitems.CustomItemsIntegration
 import com.willfp.eco.core.items.CustomItem
 import com.willfp.eco.core.items.Items
 import com.willfp.eco.core.items.TestableItem
@@ -10,8 +10,8 @@ import dev.lone.itemsadder.api.CustomStack
 import org.bukkit.inventory.ItemStack
 import java.util.function.Predicate
 
-class CustomItemsItemsAdder : CustomItemsWrapper {
-    override fun registerAllItems() {
+class CustomItemsItemsAdder : CustomItemsIntegration {
+    override fun registerProvider() {
         Items.registerItemProvider(ItemsAdderProvider())
     }
 

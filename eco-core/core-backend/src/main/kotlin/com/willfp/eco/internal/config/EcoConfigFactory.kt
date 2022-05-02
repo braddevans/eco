@@ -1,87 +1,61 @@
 package com.willfp.eco.internal.config
 
 import com.willfp.eco.core.PluginLike
+import com.willfp.eco.core.config.ConfigType
 import com.willfp.eco.core.config.interfaces.Config
-import com.willfp.eco.core.config.interfaces.JSONConfig
+import com.willfp.eco.core.config.interfaces.LoadableConfig
 import com.willfp.eco.core.config.wrapper.ConfigFactory
-import com.willfp.eco.internal.config.json.EcoJSONConfigSection
-import com.willfp.eco.internal.config.json.EcoLoadableJSONConfig
-import com.willfp.eco.internal.config.json.EcoUpdatableJSONConfig
-import com.willfp.eco.internal.config.yaml.EcoLoadableYamlConfig
-import com.willfp.eco.internal.config.yaml.EcoUpdatableYamlConfig
-import com.willfp.eco.internal.config.yaml.EcoYamlConfigSection
-import org.bukkit.configuration.file.YamlConfiguration
+import org.bukkit.configuration.ConfigurationSection
 
-class EcoConfigFactory : ConfigFactory {
-    override fun createUpdatableYamlConfig(
+object EcoConfigFactory : ConfigFactory {
+    override fun createConfig(bukkit: ConfigurationSection): Config {
+        val config = createConfig(emptyMap(), ConfigType.YAML)
+        for (key in bukkit.getKeys(true)) {
+            config.set(key, bukkit.get(key))
+        }
+
+        return config
+    }
+
+    override fun createConfig(values: Map<String, Any>, type: ConfigType): Config =
+        EcoConfigSection(type, values)
+
+    override fun createConfig(contents: String, type: ConfigType): Config =
+        EcoConfigSection(type, type.toMap(contents))
+
+    override fun createLoadableConfig(
+        configName: String,
+        plugin: PluginLike,
+        subDirectoryPath: String,
+        source: Class<*>,
+        type: ConfigType,
+        requiresChangesToSave: Boolean
+    ): LoadableConfig = EcoLoadableConfig(
+        type,
+        configName,
+        plugin,
+        subDirectoryPath,
+        source,
+        requiresChangesToSave
+    )
+
+    override fun createUpdatableConfig(
         configName: String,
         plugin: PluginLike,
         subDirectoryPath: String,
         source: Class<*>,
         removeUnused: Boolean,
+        type: ConfigType,
+        requiresChangesToSave: Boolean,
         vararg updateBlacklist: String
-    ): Config {
-        return EcoUpdatableYamlConfig(
-            configName,
-            plugin,
-            subDirectoryPath,
-            source,
-            removeUnused,
-            *updateBlacklist
-        )
-    }
-
-    override fun createUpdatableJSONConfig(
-        configName: String,
-        plugin: PluginLike,
-        subDirectoryPath: String,
-        source: Class<*>,
-        removeUnused: Boolean,
-        vararg updateBlacklist: String
-    ): JSONConfig {
-        return EcoUpdatableJSONConfig(
-            configName,
-            plugin,
-            subDirectoryPath,
-            source,
-            removeUnused,
-            *updateBlacklist
-        )
-    }
-
-    override fun createLoadableJSONConfig(
-        configName: String,
-        plugin: PluginLike,
-        subDirectoryPath: String,
-        source: Class<*>
-    ): JSONConfig {
-        return EcoLoadableJSONConfig(
-            configName,
-            plugin,
-            subDirectoryPath,
-            source
-        )
-    }
-
-    override fun createLoadableYamlConfig(
-        configName: String,
-        plugin: PluginLike,
-        subDirectoryPath: String,
-        source: Class<*>
-    ): Config {
-        return EcoLoadableYamlConfig(
-            configName,
-            plugin,
-            subDirectoryPath,
-            source
-        )
-    }
-
-    override fun createYamlConfig(config: YamlConfiguration): Config {
-        return EcoYamlConfigSection(config)
-    }
-
-    override fun createJSONConfig(values: Map<String, Any>): JSONConfig {
-        return EcoJSONConfigSection(values)
-    }
+    ): LoadableConfig = EcoUpdatableConfig(
+        type,
+        configName,
+        plugin,
+        subDirectoryPath,
+        source,
+        removeUnused,
+        requiresChangesToSave,
+        *updateBlacklist
+    )
 }

@@ -10,9 +10,13 @@ import java.util.List;
  * A command handler handles the actual code for a command.
  * <p>
  * The replacement for {@link org.bukkit.command.CommandExecutor#onCommand(CommandSender, Command, String, String[])}
+ *
  * @see CommandBase
+ * @deprecated Handlers have been deprecated. This legacy system will eventually be removed,
+ * update to use the new system: {@link CommandBase#onExecute(CommandSender, List)}.
  */
 @FunctionalInterface
+@Deprecated(since = "6.17.0", forRemoval = true)
 public interface CommandHandler {
     /**
      * The code to be called on execution.

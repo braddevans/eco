@@ -3,11 +3,12 @@ package com.willfp.eco.core.recipe.recipes;
 import com.willfp.eco.core.Eco;
 import com.willfp.eco.core.EcoPlugin;
 import com.willfp.eco.core.PluginDependent;
-import com.willfp.eco.core.Prerequisite;
 import com.willfp.eco.core.items.TestableItem;
 import com.willfp.eco.core.recipe.Recipes;
 import com.willfp.eco.core.recipe.parts.EmptyTestableItem;
+import com.willfp.eco.core.recipe.parts.GroupedTestableItems;
 import com.willfp.eco.core.recipe.parts.TestableStack;
+import com.willfp.eco.util.ListUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.ItemStack;
@@ -15,6 +16,7 @@ import org.bukkit.inventory.RecipeChoice;
 import org.bukkit.inventory.ShapedRecipe;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -44,23 +46,31 @@ public final class ShapedCraftingRecipe extends PluginDependent<EcoPlugin> imple
      */
     private final ItemStack output;
 
+    /**
+     * The permission.
+     */
+    private final String permission;
+
     private ShapedCraftingRecipe(@NotNull final EcoPlugin plugin,
                                  @NotNull final String key,
                                  @NotNull final List<TestableItem> parts,
-                                 @NotNull final ItemStack output) {
+                                 @NotNull final ItemStack output,
+                                 @Nullable final String permission) {
         super(plugin);
 
         this.parts = parts;
         this.key = plugin.getNamespacedKeyFactory().create(key);
         this.displayedKey = plugin.getNamespacedKeyFactory().create(key + "_displayed");
         this.output = output;
+        this.permission = permission;
     }
 
     @Override
     public boolean test(@NotNull final ItemStack[] matrix) {
+        List<ItemStack> dynamicMatrix = Arrays.asList(matrix);
         boolean matches = true;
         for (int i = 0; i < 9; i++) {
-            if (!parts.get(i).matches(matrix[i])) {
+            if (!parts.get(i).matches(ListUtils.getOrNull(dynamicMatrix, i))) {
                 matches = false;
             }
         }
@@ -94,29 +104,38 @@ public final class ShapedCraftingRecipe extends PluginDependent<EcoPlugin> imple
             }
 
             char character = String.valueOf(i).toCharArray()[0];
-            ItemStack item = parts.get(i).getItem();
 
-            if (parts.get(i) instanceof TestableStack) {
-                ItemMeta meta = item.getItemMeta();
-                assert meta != null;
-
-                List<String> lore = meta.hasLore() ? meta.getLore() : new ArrayList<>();
-                assert lore != null;
-                lore.add("");
-                String add = Eco.getHandler().getEcoPlugin().getLangYml().getString("multiple-in-craft");
-                add = add.replace("%amount%", String.valueOf(item.getAmount()));
-                lore.add(add);
-                meta.setLore(lore);
-                item.setItemMeta(meta);
+            List<TestableItem> items = new ArrayList<>();
+            if (parts.get(i) instanceof GroupedTestableItems group) {
+                items.addAll(group.getChildren());
+            } else {
+                items.add(parts.get(i));
             }
 
-            displayedRecipe.setIngredient(character, new RecipeChoice.ExactChoice(item));
-        }
+            List<ItemStack> displayedItems = new ArrayList<>();
 
-        if (Prerequisite.HAS_1_18.isMet() && !Prerequisite.HAS_PAPER.isMet()) {
-            if (Bukkit.getServer().getRecipe(this.getKey()) != null) {
-                return;
+            for (TestableItem testableItem : items) {
+                if (testableItem instanceof TestableStack) {
+                    ItemStack item = testableItem.getItem().clone();
+                    ItemMeta meta = item.getItemMeta();
+                    assert meta != null;
+
+                    List<String> lore = meta.hasLore() ? meta.getLore() : new ArrayList<>();
+                    assert lore != null;
+                    lore.add("");
+                    String add = Eco.getHandler().getEcoPlugin().getLangYml().getFormattedString("multiple-in-craft");
+                    add = add.replace("%amount%", String.valueOf(item.getAmount()));
+                    lore.add(add);
+                    meta.setLore(lore);
+                    item.setItemMeta(meta);
+
+                    displayedItems.add(item);
+                } else {
+                    displayedItems.add(testableItem.getItem());
+                }
             }
+
+            displayedRecipe.setIngredient(character, new RecipeChoice.ExactChoice(displayedItems));
         }
 
         Bukkit.getServer().addRecipe(shapedRecipe);
@@ -140,6 +159,8 @@ public final class ShapedCraftingRecipe extends PluginDependent<EcoPlugin> imple
      *
      * @return The parts.
      */
+    @NotNull
+    @Override
     public List<TestableItem> getParts() {
         return this.parts;
     }
@@ -149,6 +170,8 @@ public final class ShapedCraftingRecipe extends PluginDependent<EcoPlugin> imple
      *
      * @return The key.
      */
+    @NotNull
+    @Override
     public NamespacedKey getKey() {
         return this.key;
     }
@@ -158,6 +181,8 @@ public final class ShapedCraftingRecipe extends PluginDependent<EcoPlugin> imple
      *
      * @return The displayed key.
      */
+    @NotNull
+    @Override
     public NamespacedKey getDisplayedKey() {
         return this.displayedKey;
     }
@@ -167,8 +192,21 @@ public final class ShapedCraftingRecipe extends PluginDependent<EcoPlugin> imple
      *
      * @return The output.
      */
+    @NotNull
+    @Override
     public ItemStack getOutput() {
         return this.output;
+    }
+
+    /**
+     * Get the permission.
+     *
+     * @return The permission.
+     */
+    @Nullable
+    @Override
+    public String getPermission() {
+        return permission;
     }
 
     /**
@@ -184,6 +222,11 @@ public final class ShapedCraftingRecipe extends PluginDependent<EcoPlugin> imple
          * The output of the recipe.
          */
         private ItemStack output = null;
+
+        /**
+         * The permission for the recipe.
+         */
+        private String permission = null;
 
         /**
          * The key of the recipe.
@@ -245,6 +288,31 @@ public final class ShapedCraftingRecipe extends PluginDependent<EcoPlugin> imple
         }
 
         /**
+         * Set the permission required to craft the recipe.
+         *
+         * @param permission The permission.
+         * @return The builder.
+         */
+        public Builder setPermission(@Nullable final String permission) {
+            this.permission = permission;
+            return this;
+        }
+
+        /**
+         * Check if recipe parts are all air.
+         *
+         * @return If recipe parts are all air.
+         */
+        public boolean isAir() {
+            for (TestableItem recipePart : this.recipeParts) {
+                if (recipePart != null && !(recipePart instanceof EmptyTestableItem)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /**
          * Build the recipe.
          *
          * @return The built recipe.
@@ -256,7 +324,7 @@ public final class ShapedCraftingRecipe extends PluginDependent<EcoPlugin> imple
                 }
             }
 
-            return new ShapedCraftingRecipe(plugin, key.toLowerCase(), recipeParts, output);
+            return new ShapedCraftingRecipe(plugin, key.toLowerCase(), recipeParts, output, permission);
         }
     }
 }

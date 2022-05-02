@@ -7,8 +7,11 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * Interface to run on slot modify.
+ *
+ * @deprecated Use {@link SlotUpdater} instead.
  */
 @FunctionalInterface
+@Deprecated
 public interface SlotModifier {
     /**
      * Performs this operation on the given arguments.

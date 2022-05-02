@@ -1,13 +1,11 @@
 package com.willfp.eco.core.integrations.shop;
 
-import com.willfp.eco.core.integrations.Integration;
-
 /**
  * Wrapper class for shop integrations.
+ *
+ * @deprecated Use ShopIntegration instead.
  */
-public interface ShopWrapper extends Integration {
-    /**
-     * Register eco item provider for shop plugins.
-     */
-    void registerEcoProvider();
+@Deprecated(since = "6.35.0", forRemoval = true)
+public interface ShopWrapper extends ShopIntegration {
+
 }

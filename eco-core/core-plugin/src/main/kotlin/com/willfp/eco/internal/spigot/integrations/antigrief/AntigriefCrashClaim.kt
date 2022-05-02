@@ -1,6 +1,6 @@
 package com.willfp.eco.internal.spigot.integrations.antigrief
 
-import com.willfp.eco.core.integrations.antigrief.AntigriefWrapper
+import com.willfp.eco.core.integrations.antigrief.AntigriefIntegration
 import net.crashcraft.crashclaim.CrashClaim
 import net.crashcraft.crashclaim.permissions.PermissionRoute
 import org.bukkit.Location
@@ -8,13 +8,13 @@ import org.bukkit.block.Block
 import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Player
 
-class AntigriefCrashClaim : AntigriefWrapper {
+class AntigriefCrashClaim : AntigriefIntegration {
     override fun canBreakBlock(
         player: Player,
         block: Block
     ): Boolean {
         val api = CrashClaim.getPlugin().api ?: return true
-        val claim = api.getClaim(block.location).getNow(null) ?: return true
+        val claim = api.getClaim(block.location) ?: return true
         return claim.hasPermission(player.uniqueId, block.location, PermissionRoute.BUILD)
     }
 
@@ -23,7 +23,7 @@ class AntigriefCrashClaim : AntigriefWrapper {
         location: Location
     ): Boolean {
         val api = CrashClaim.getPlugin().api ?: return true
-        val claim = api.getClaim(location).getNow(null) ?: return true
+        val claim = api.getClaim(location) ?: return true
         return claim.hasPermission(player.uniqueId, location, PermissionRoute.EXPLOSIONS)
     }
 
@@ -32,7 +32,7 @@ class AntigriefCrashClaim : AntigriefWrapper {
         block: Block
     ): Boolean {
         val api = CrashClaim.getPlugin().api ?: return true
-        val claim = api.getClaim(block.location).getNow(null) ?: return true
+        val claim = api.getClaim(block.location) ?: return true
         return claim.hasPermission(player.uniqueId, block.location, PermissionRoute.BUILD)
     }
 
@@ -41,11 +41,15 @@ class AntigriefCrashClaim : AntigriefWrapper {
         victim: LivingEntity
     ): Boolean {
         val api = CrashClaim.getPlugin().api ?: return true
-        val claim = api.getClaim(victim.location).getNow(null) ?: return true
+        val claim = api.getClaim(victim.location) ?: return true
         return when (victim) {
             is Player -> false
             else -> claim.hasPermission(player.uniqueId, victim.location, PermissionRoute.ENTITIES)
         }
+    }
+
+    override fun canPickupItem(player: Player, location: Location): Boolean {
+        return true
     }
 
     override fun getPluginName(): String {
@@ -53,7 +57,7 @@ class AntigriefCrashClaim : AntigriefWrapper {
     }
 
     override fun equals(other: Any?): Boolean {
-        if (other !is AntigriefWrapper) {
+        if (other !is AntigriefIntegration) {
             return false
         }
 

@@ -11,6 +11,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -60,6 +61,53 @@ public interface Menu {
     List<ItemStack> getCaptiveItems(@NotNull Player player);
 
     /**
+     * Add state for a player.
+     *
+     * @param player The player.
+     * @param key    The key.
+     * @param value  The state.
+     */
+    void addState(@NotNull Player player,
+                  @NotNull String key,
+                  @Nullable Object value);
+
+    /**
+     * Remove state for a player.
+     *
+     * @param player The player.
+     * @param key    The key.
+     */
+    void removeState(@NotNull Player player,
+                     @NotNull String key);
+
+    /**
+     * Clear state for a player.
+     *
+     * @param player The player.
+     */
+    void clearState(@NotNull Player player);
+
+
+    /**
+     * Get state for a player.
+     *
+     * @param player The player.
+     * @param key    The key.
+     * @param <T>    The type of state.
+     * @return The value.
+     */
+    @Nullable <T> T getState(@NotNull Player player,
+                             @NotNull String key);
+
+    /**
+     * Get state for a player.
+     *
+     * @param player The player.
+     * @return The state.
+     */
+    Map<String, Object> getState(@NotNull Player player);
+
+    /**
      * Write data.
      *
      * @param player The player.
@@ -68,7 +116,9 @@ public interface Menu {
      * @param value  The value.
      * @param <T>    The type.
      * @param <Z>    The type.
+     * @deprecated Use addState instead.
      */
+    @Deprecated(since = "6.35.0", forRemoval = true)
     <T, Z> void writeData(@NotNull Player player,
                           @NotNull NamespacedKey key,
                           @NotNull PersistentDataType<T, Z> type,
@@ -83,7 +133,9 @@ public interface Menu {
      * @param <T>    The type.
      * @param <Z>    The type.
      * @return The data.
+     * @deprecated Use getState instead.
      */
+    @Deprecated(since = "6.35.0", forRemoval = true)
     @Nullable <T, Z> T readData(@NotNull Player player,
                                 @NotNull NamespacedKey key,
                                 @NotNull PersistentDataType<T, Z> type);
@@ -93,8 +145,17 @@ public interface Menu {
      *
      * @param player The player.
      * @return The keys.
+     * @deprecated Use getState instead.
      */
+    @Deprecated(since = "6.35.0", forRemoval = true)
     Set<NamespacedKey> getKeys(@NotNull Player player);
+
+    /**
+     * Re-render the menu for a player.
+     *
+     * @param player The player.
+     */
+    void refresh(@NotNull Player player);
 
     /**
      * Create a builder with a given amount of rows.

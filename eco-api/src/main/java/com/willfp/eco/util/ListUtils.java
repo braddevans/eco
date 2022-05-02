@@ -1,8 +1,10 @@
 package com.willfp.eco.util;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +55,58 @@ public final class ListUtils {
         }
 
         return frequencyMap;
+    }
+
+    /**
+     * Convert nullable object to either singleton list or empty list.
+     *
+     * @param object The object.
+     * @param <T>    The type of the object.
+     * @return The list.
+     */
+    @NotNull
+    public static <T> List<T> toSingletonList(@Nullable final T object) {
+        if (object == null) {
+            return Collections.emptyList();
+        } else {
+            return Collections.singletonList(object);
+        }
+    }
+
+    /**
+     * Get element from list or return null if out of bounds.
+     *
+     * @param list  The list.
+     * @param index The index.
+     * @param <T>   The type of the list.
+     * @return The found element, or null if out of bounds.
+     */
+    @Nullable
+    public static <T> T getOrNull(@Nullable final List<T> list,
+                                  final int index) {
+        if (list == null) {
+            return null;
+        }
+
+        return index >= 0 && index < list.size() ? list.get(index) : null;
+    }
+
+    /**
+     * Get if an iterable of strings contains a certain element regardless of case.
+     *
+     * @param list    The list.
+     * @param element The element.
+     * @return If contained.
+     */
+    public static boolean containsIgnoreCase(@NotNull final Iterable<String> list,
+                                             @NotNull final String element) {
+        for (String s : list) {
+            if (s.equalsIgnoreCase(element)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private ListUtils() {

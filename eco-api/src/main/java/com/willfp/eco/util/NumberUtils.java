@@ -1,8 +1,18 @@
 package com.willfp.eco.util;
 
+import com.willfp.eco.core.placeholder.InjectablePlaceholder;
+import com.willfp.eco.core.placeholder.PlaceholderInjectable;
+import com.willfp.eco.core.placeholder.StaticPlaceholder;
+import org.apache.commons.lang.Validate;
+import org.bukkit.entity.Player;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ThreadLocalRandom;
@@ -15,6 +25,11 @@ public final class NumberUtils {
      * Sin lookup table.
      */
     private static final double[] SIN_LOOKUP = new double[65536];
+
+    /**
+     * Crunch handler.
+     */
+    private static CrunchHandler crunch = null;
 
     /**
      * Set of roman numerals to look up.
@@ -83,7 +98,9 @@ public final class NumberUtils {
      * @param toChange The value to test.
      * @param limit    The maximum.
      * @return The new value.
+     * @deprecated Pointless method.
      */
+    @Deprecated(since = "6.19.0")
     public static int equalIfOver(final int toChange,
                                   final int limit) {
         return Math.min(toChange, limit);
@@ -95,7 +112,9 @@ public final class NumberUtils {
      * @param toChange The value to test.
      * @param limit    The maximum.
      * @return The new value.
+     * @deprecated Pointless method.
      */
+    @Deprecated(since = "6.19.0", forRemoval = true)
     public static double equalIfOver(final double toChange,
                                      final double limit) {
         return Math.min(toChange, limit);
@@ -185,11 +204,23 @@ public final class NumberUtils {
     /**
      * Get Log base 2 of a number.
      *
-     * @param toLog The number.
+     * @param a The number.
      * @return The result.
      */
-    public static int log2(final int toLog) {
-        return (int) (Math.log(toLog) / Math.log(2));
+    public static int log2(final int a) {
+        return (int) logBase(a, 2);
+    }
+
+    /**
+     * Log with a base.
+     *
+     * @param a    The number.
+     * @param base The base.
+     * @return The logarithm.
+     */
+    public static double logBase(final double a,
+                                 final double base) {
+        return Math.log(a) / Math.log(base);
     }
 
     /**
@@ -204,6 +235,111 @@ public final class NumberUtils {
         String formatted = df.format(toFormat);
 
         return formatted.endsWith("00") ? String.valueOf((int) toFormat) : formatted;
+    }
+
+    /**
+     * Evaluate an expression.
+     *
+     * @param expression The expression.
+     * @return The value of the expression, or zero if invalid.
+     */
+    public static double evaluateExpression(@NotNull final String expression) {
+        return evaluateExpression(expression, null);
+    }
+
+    /**
+     * Evaluate an expression with respect to a player (for placeholders).
+     *
+     * @param expression The expression.
+     * @param player     The player.
+     * @return The value of the expression, or zero if invalid.
+     */
+    public static double evaluateExpression(@NotNull final String expression,
+                                            @Nullable final Player player) {
+        return evaluateExpression(expression, player, new PlaceholderInjectable() {
+            @Override
+            public void clearInjectedPlaceholders() {
+                // Nothing.
+            }
+
+            @Override
+            public @NotNull List<InjectablePlaceholder> getPlaceholderInjections() {
+                return Collections.emptyList();
+            }
+        });
+    }
+
+    /**
+     * Evaluate an expression with respect to a player (for placeholders).
+     *
+     * @param expression The expression.
+     * @param player     The player.
+     * @param statics    The static placeholders.
+     * @return The value of the expression, or zero if invalid.
+     * @deprecated Use new statics system.
+     */
+    @Deprecated(since = "6.35.0", forRemoval = true)
+    public static double evaluateExpression(@NotNull final String expression,
+                                            @Nullable final Player player,
+                                            @NotNull final Iterable<StaticPlaceholder> statics) {
+        return crunch.evaluate(expression, player, new PlaceholderInjectable() {
+            @Override
+            public void clearInjectedPlaceholders() {
+                // Do nothing.
+            }
+
+            @Override
+            public @NotNull List<InjectablePlaceholder> getPlaceholderInjections() {
+                List<InjectablePlaceholder> injections = new ArrayList<>();
+                for (StaticPlaceholder placeholder : statics) {
+                    injections.add(placeholder);
+                }
+                return injections;
+            }
+        });
+    }
+
+    /**
+     * Evaluate an expression with respect to a player (for placeholders).
+     *
+     * @param expression The expression.
+     * @param player     The player.
+     * @param context The injectable placeholders.
+     * @return The value of the expression, or zero if invalid.
+     */
+    public static double evaluateExpression(@NotNull final String expression,
+                                            @Nullable final Player player,
+                                            @NotNull final PlaceholderInjectable context) {
+        return crunch.evaluate(expression, player, context);
+    }
+
+    /**
+     * Init crunch handler.
+     *
+     * @param handler The handler.
+     */
+    @ApiStatus.Internal
+    public static void initCrunch(@NotNull final CrunchHandler handler) {
+        Validate.isTrue(crunch == null, "Already initialized!");
+        crunch = handler;
+    }
+
+    /**
+     * Bridge component for crunch.
+     */
+    @ApiStatus.Internal
+    public interface CrunchHandler {
+        /**
+         * Evaluate an expression.
+         *
+         * @param expression The expression.
+         * @param player     The player.
+         * @param injectable The injectable placeholders.
+         * @return The value of the expression, or zero if invalid.
+         */
+        double evaluate(@NotNull String expression,
+                        @Nullable Player player,
+                        @NotNull PlaceholderInjectable injectable);
     }
 
     private NumberUtils() {

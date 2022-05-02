@@ -1,7 +1,7 @@
 package com.willfp.eco.internal.spigot.integrations.antigrief
 
 import com.willfp.eco.core.EcoPlugin
-import com.willfp.eco.core.integrations.antigrief.AntigriefWrapper
+import com.willfp.eco.core.integrations.antigrief.AntigriefIntegration
 import me.angeschossen.lands.api.flags.Flags
 import me.angeschossen.lands.api.integration.LandsIntegration
 import org.bukkit.Location
@@ -11,7 +11,7 @@ import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Monster
 import org.bukkit.entity.Player
 
-class AntigriefLands(private val plugin: EcoPlugin) : AntigriefWrapper {
+class AntigriefLands(private val plugin: EcoPlugin) : AntigriefIntegration {
     private val landsIntegration = LandsIntegration(this.plugin)
     override fun canBreakBlock(
         player: Player,
@@ -52,12 +52,17 @@ class AntigriefLands(private val plugin: EcoPlugin) : AntigriefWrapper {
         }
     }
 
+    override fun canPickupItem(player: Player, location: Location): Boolean {
+        val area = landsIntegration.getAreaByLoc(location) ?: return true
+        return area.hasFlag(player, Flags.ITEM_PICKUP, false)
+    }
+
     override fun getPluginName(): String {
         return "Lands"
     }
 
     override fun equals(other: Any?): Boolean {
-        if (other !is AntigriefWrapper) {
+        if (other !is AntigriefIntegration) {
             return false
         }
 

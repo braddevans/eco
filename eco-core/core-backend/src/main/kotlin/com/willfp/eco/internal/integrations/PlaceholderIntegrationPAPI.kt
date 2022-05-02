@@ -32,7 +32,7 @@ class PlaceholderIntegrationPAPI(private val plugin: EcoPlugin) : PlaceholderExp
         player: Player?,
         identifier: String
     ): String {
-        return PlaceholderManager.getResult(player, identifier)
+        return PlaceholderManager.getResult(player, identifier, plugin)
     }
 
     override fun registerIntegration() {
@@ -48,5 +48,15 @@ class PlaceholderIntegrationPAPI(private val plugin: EcoPlugin) : PlaceholderExp
         player: Player?
     ): String {
         return PlaceholderAPI.setPlaceholders(player, text)
+    }
+
+    override fun findPlaceholdersIn(text: String): MutableList<String> {
+        val placeholders = mutableListOf<String>()
+        val matcher = PlaceholderAPI.getPlaceholderPattern().matcher(text)
+        while (matcher.find()) {
+            placeholders.add(matcher.group())
+        }
+
+        return placeholders
     }
 }

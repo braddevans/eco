@@ -1,11 +1,10 @@
 package com.willfp.eco.internal.proxy
 
 import com.willfp.eco.core.EcoPlugin
-import com.willfp.eco.core.proxy.AbstractProxy
 import com.willfp.eco.core.proxy.ProxyConstants
 import com.willfp.eco.core.proxy.ProxyFactory
 import com.willfp.eco.core.proxy.exceptions.ProxyError
-import com.willfp.eco.core.proxy.exceptions.UnsupportedVersionException
+import com.willfp.eco.core.proxy.exceptions.UnsupportedVersionError
 import java.net.URLClassLoader
 import java.util.IdentityHashMap
 
@@ -13,9 +12,9 @@ class EcoProxyFactory(
     private val plugin: EcoPlugin
 ) : ProxyFactory {
     private val proxyClassLoader: ClassLoader = plugin::class.java.classLoader
-    private val cache: MutableMap<Class<out AbstractProxy>, AbstractProxy> = IdentityHashMap()
+    private val cache: MutableMap<Class<out Any>, Any> = IdentityHashMap()
 
-    override fun <T : AbstractProxy> getProxy(proxyClass: Class<T>): T {
+    override fun <T : Any> getProxy(proxyClass: Class<T>): T {
         try {
             val cachedProxy: T? = attemptCache(proxyClass)
             if (cachedProxy != null) {
@@ -35,25 +34,30 @@ class EcoProxyFactory(
                 return proxy
             }
         } catch (e: Exception) {
-            throwError(e)
+            throw proxyErrorFrom(e)
         }
 
-        throwError(IllegalArgumentException())
-
-        throw RuntimeException("Something went wrong.")
+        throw proxyErrorFrom(IllegalArgumentException("Class doesn't seem to be a proxy."))
     }
 
-    private fun throwError(e: Exception?) {
-        e?.printStackTrace()
+    private fun proxyErrorFrom(e: Exception): Throwable {
+        plugin.logger.severe("Fatal error with proxies! This plugin can't load.")
 
-        if (!SUPPORTED_VERSIONS.contains(ProxyConstants.NMS_VERSION)) {
-            throw UnsupportedVersionException("You're running an unsupported server version: " + ProxyConstants.NMS_VERSION)
+        return if (!ProxyConstants.SUPPORTED_VERSIONS.contains(ProxyConstants.NMS_VERSION)) {
+            ProxyError(
+                "Could not initialize proxy.",
+                UnsupportedVersionError()
+            )
         } else {
-            throw ProxyError("Error with proxies - here's a stacktrace. Only god can help you now.")
+            ProxyError(
+                "Could not initialize proxy. If you're seeing this error message"
+                        + ", something has gone badly wrong. This almost definitely isn't user error, blame the developer.",
+                e
+            )
         }
     }
 
-    private fun <T : AbstractProxy> attemptCache(proxyClass: Class<T>): T? {
+    private fun <T : Any> attemptCache(proxyClass: Class<T>): T? {
         val proxy = cache[proxyClass] ?: return null
 
         if (proxyClass.isInstance(proxy)) {
@@ -69,13 +73,5 @@ class EcoProxyFactory(
         }
 
         cache.clear()
-    }
-
-    companion object {
-        val SUPPORTED_VERSIONS = listOf(
-            "v1_16_R3",
-            "v1_17_R1",
-            "v1_18_R1"
-        )
     }
 }

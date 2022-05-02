@@ -4,48 +4,33 @@ import com.bgsoftware.superiorskyblock.api.SuperiorSkyblockAPI
 import com.bgsoftware.superiorskyblock.api.enums.HitActionResult
 import com.bgsoftware.superiorskyblock.api.island.Island
 import com.bgsoftware.superiorskyblock.api.island.IslandPrivilege
-import com.bgsoftware.superiorskyblock.api.key.Key
 import com.bgsoftware.superiorskyblock.api.wrappers.SuperiorPlayer
-import com.willfp.eco.core.integrations.antigrief.AntigriefWrapper
+import com.willfp.eco.core.integrations.antigrief.AntigriefIntegration
 import org.bukkit.Location
-import org.bukkit.Material
 import org.bukkit.block.Block
-import org.bukkit.entity.*
+import org.bukkit.entity.LivingEntity
+import org.bukkit.entity.Monster
+import org.bukkit.entity.Player
 
-class AntigriefSuperiorSkyblock2 : AntigriefWrapper {
+class AntigriefSuperiorSkyblock2 : AntigriefIntegration {
     override fun getPluginName(): String {
         return "SuperiorSkyblock2"
     }
 
     override fun canBreakBlock(player: Player, block: Block): Boolean {
-        val island: Island? =
-            SuperiorSkyblockAPI.getIslandAt(block.location)
-
-        val superiorPlayer: SuperiorPlayer =
-            SuperiorSkyblockAPI.getPlayer(player)
+        val island = SuperiorSkyblockAPI.getIslandAt(block.location)
+        val superiorPlayer = SuperiorSkyblockAPI.getPlayer(player)
 
         if (island == null) {
             if (!superiorPlayer.hasBypassModeEnabled() && SuperiorSkyblockAPI.getSuperiorSkyblock().grid
-                    .isIslandsWorld(player.world)
+                    .isIslandsWorld(superiorPlayer.world)
             ) {
                 return false
             }
             return true
         }
 
-        val blockType = block.type
-
-        val islandPermission: IslandPrivilege =
-            if (blockType == Material.SPAWNER) IslandPrivilege.getByName("SPAWNER_BREAK") else IslandPrivilege.getByName("BREAK")
-
-        if (!island.hasPermission(superiorPlayer, islandPermission)) {
-            return false
-        }
-
-        if (SuperiorSkyblockAPI.getSuperiorSkyblock().settings.valuableBlocks
-                .contains(Key.of(block)) &&
-            !island.hasPermission(superiorPlayer, IslandPrivilege.getByName("VALUABLE_BREAK"))
-        ) {
+        if (!island.hasPermission(superiorPlayer, IslandPrivilege.getByName("BREAK"))) {
             return false
         }
 
@@ -64,14 +49,12 @@ class AntigriefSuperiorSkyblock2 : AntigriefWrapper {
     }
 
     override fun canPlaceBlock(player: Player, block: Block): Boolean {
-        val island: Island? =
-            SuperiorSkyblockAPI.getIslandAt(block.location)
-
-        val superiorPlayer: SuperiorPlayer =
-            SuperiorSkyblockAPI.getPlayer(player)
+        val island = SuperiorSkyblockAPI.getIslandAt(block.location)
+        val superiorPlayer: SuperiorPlayer = SuperiorSkyblockAPI.getPlayer(player)
 
         if (island == null) {
-            if (!superiorPlayer.hasBypassModeEnabled() && SuperiorSkyblockAPI.getSuperiorSkyblock().grid.isIslandsWorld(superiorPlayer.world)
+            if (!superiorPlayer.hasBypassModeEnabled() && SuperiorSkyblockAPI.getSuperiorSkyblock().grid
+                    .isIslandsWorld(superiorPlayer.world)
             ) {
                 return false
             }
@@ -90,19 +73,28 @@ class AntigriefSuperiorSkyblock2 : AntigriefWrapper {
     }
 
     override fun canInjure(player: Player, victim: LivingEntity): Boolean {
-        if (SuperiorSkyblockAPI.getPlayer(player).hasBypassModeEnabled()) {
-            return true
+
+        val island: Island? = SuperiorSkyblockAPI.getSuperiorSkyblock().grid.getIslandAt(victim.location)
+
+        if (victim is Player) return SuperiorSkyblockAPI.getPlayer(player).canHit(SuperiorSkyblockAPI.getPlayer(victim))
+            .equals(HitActionResult.SUCCESS)
+
+        val islandPermission = when (victim) {
+            is Monster -> IslandPrivilege.getByName("MONSTER_DAMAGE")
+            else -> IslandPrivilege.getByName("ANIMAL_DAMAGE")
         }
-        return when (victim) {
-            is Player -> SuperiorSkyblockAPI.getPlayer(player).canHit(SuperiorSkyblockAPI.getPlayer(victim)).equals(HitActionResult.SUCCESS)
-            else -> {
-                val island: Island? = SuperiorSkyblockAPI.getSuperiorSkyblock().grid.getIslandAt(victim.location)
-                val islandPermission = if (victim is Monster) IslandPrivilege.getByName("MONSTER_DAMAGE") else IslandPrivilege.getByName("ANIMAL_DAMAGE")
-                if (island != null ) {
-                    return island.hasPermission(player, islandPermission)
-                }
-                return true
-            }
+
+        if (island != null && !island.hasPermission(player, islandPermission)) {
+            return false
         }
+
+        return true
+    }
+
+    override fun canPickupItem(player: Player, location: Location): Boolean {
+        val superiorPlayer: SuperiorPlayer =
+            SuperiorSkyblockAPI.getPlayer(player)
+        val island = SuperiorSkyblockAPI.getSuperiorSkyblock().grid.getIslandAt(location) ?: return true
+        return island.hasPermission(superiorPlayer, IslandPrivilege.getByName("PICKUP_DROPS"))
     }
 }

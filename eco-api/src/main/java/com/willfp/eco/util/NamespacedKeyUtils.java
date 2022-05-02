@@ -1,7 +1,9 @@
 package com.willfp.eco.util;
 
+import com.willfp.eco.core.Eco;
 import org.bukkit.NamespacedKey;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
 
@@ -17,7 +19,7 @@ public final class NamespacedKeyUtils {
      */
     @NotNull
     public static NamespacedKey createEcoKey(@NotNull final String string) {
-        return Objects.requireNonNull(NamespacedKey.fromString("eco:" + string));
+        return NamespacedKeyUtils.create("eco", string);
     }
 
     /**
@@ -30,7 +32,45 @@ public final class NamespacedKeyUtils {
     @NotNull
     public static NamespacedKey create(@NotNull final String namespace,
                                        @NotNull final String key) {
-        return Objects.requireNonNull(NamespacedKey.fromString(namespace + ":" + key));
+        return Eco.getHandler().createNamespacedKey(
+                namespace,
+                key
+        );
+    }
+
+    /**
+     * Create a NamespacedKey from a string.
+     * <p>
+     * Preferred over {@link NamespacedKey#fromString(String)} for performance reasons.
+     *
+     * @param string The string.
+     * @return The key.
+     */
+    @NotNull
+    public static NamespacedKey fromString(@NotNull final String string) {
+        return Objects.requireNonNull(NamespacedKeyUtils.fromStringOrNull(string));
+    }
+
+    /**
+     * Create a NamespacedKey from a string.
+     * <p>
+     * Preferred over {@link NamespacedKey#fromString(String)} for performance reasons.
+     *
+     * @param string The string.
+     * @return The key, or null if not a key.
+     */
+    @Nullable
+    public static NamespacedKey fromStringOrNull(@NotNull final String string) {
+        int index = string.indexOf(":");
+
+        if (index < 0) {
+            return null;
+        }
+
+        return NamespacedKeyUtils.create(
+                string.substring(0, index),
+                string.substring(index + 1)
+        );
     }
 
     private NamespacedKeyUtils() {
