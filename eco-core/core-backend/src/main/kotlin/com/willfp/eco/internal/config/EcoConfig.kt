@@ -3,6 +3,7 @@ package com.willfp.eco.internal.config
 import com.willfp.eco.core.config.ConfigType
 import com.willfp.eco.core.config.interfaces.Config
 import com.willfp.eco.core.placeholder.InjectablePlaceholder
+import com.willfp.eco.core.placeholder.StaticPlaceholder
 import com.willfp.eco.util.StringUtils
 import org.bukkit.configuration.file.YamlConfiguration
 import java.util.concurrent.ConcurrentHashMap
@@ -103,11 +104,13 @@ open class EcoConfig(
     }
 
     override fun getSubsectionOrNull(path: String): Config? {
-        return get(path) as? Config
+        return (get(path) as? Config)?.apply { this.addInjectablePlaceholder(injections) }
     }
 
     override fun getSubsectionsOrNull(path: String): List<Config>? {
-        return (get(path) as? Iterable<Config>)?.toList()
+        return (get(path) as? Iterable<Config>)
+            ?.map { it.apply { this.addInjectablePlaceholder(injections) } }
+            ?.toList()
     }
 
     override fun getType(): ConfigType {
@@ -135,7 +138,14 @@ open class EcoConfig(
         format: Boolean,
         option: StringUtils.FormatOption
     ): String? {
-        val string = get(path)?.toString() ?: return null
+        var string = get(path)?.toString() ?: return null
+        if (format && option == StringUtils.FormatOption.WITH_PLACEHOLDERS) {
+            for (injection in placeholderInjections) {
+                if (injection is StaticPlaceholder) {
+                    string = string.replace("%${injection.identifier}%", injection.value)
+                }
+            }
+        }
         return if (format) StringUtils.format(string, option) else string
     }
 
@@ -144,7 +154,18 @@ open class EcoConfig(
         format: Boolean,
         option: StringUtils.FormatOption
     ): List<String>? {
-        val strings = (get(path) as? Iterable<*>)?.map { it.toString() } ?: return null
+        val strings = (get(path) as? Iterable<*>)?.map { it.toString() }?.toMutableList() ?: return null
+        if (placeholderInjections.isNotEmpty() && format && option == StringUtils.FormatOption.WITH_PLACEHOLDERS) {
+            strings.replaceAll {
+                var string = it
+                for (injection in placeholderInjections) {
+                    if (injection is StaticPlaceholder) {
+                        string = string.replace("%${injection.identifier}%", injection.value)
+                    }
+                }
+                string
+            }
+        }
         return if (format) StringUtils.formatList(strings, option) else strings
     }
 

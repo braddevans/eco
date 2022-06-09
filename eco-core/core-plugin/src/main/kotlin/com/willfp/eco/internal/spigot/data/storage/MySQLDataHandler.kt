@@ -13,8 +13,6 @@ import com.willfp.eco.internal.spigot.data.KeyHelpers
 import com.willfp.eco.internal.spigot.data.serverProfileUUID
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
-import org.apache.logging.log4j.Level
-import org.bukkit.NamespacedKey
 import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.BooleanColumnType
 import org.jetbrains.exposed.sql.Column
@@ -24,27 +22,43 @@ import org.jetbrains.exposed.sql.IntegerColumnType
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.VarCharColumnType
-import org.jetbrains.exposed.sql.exposedLogger
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
 import java.util.UUID
 import java.util.concurrent.Callable
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
-import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
+
+/*
+
+The MySQL data handler is hot garbage for several reasons:
+- Using MySQL on unstructured data: it's being horrifically misused, but that's just how it has to be.
+- Can't remove un-needed keys, there's wasted space in the columns everywhere.
+- No native support for the STRING_LIST type, instead it 'serializes' the lists with semicolons as separators.
+- General lack of flexibility, it's too rigid.
+
+That's why I added the MongoDB handler, it's far, far better suited for what eco does - use it over
+MySQL if you can.
+
+Oh, also - I don't really know how this class works. I've rewritten it and hacked it together several ways
+in several sessions, and it's basically complete gibberish to me. Adding the STRING_LIST type is probably
+the worst bodge I've shipped in production.
+
+ */
 
 @Suppress("UNCHECKED_CAST")
 class MySQLDataHandler(
     private val plugin: EcoSpigotPlugin,
     handler: EcoProfileHandler
-) : DataHandler {
+) : DataHandler(HandlerType.MYSQL) {
     private val playerHandler: ImplementedMySQLHandler
     private val serverHandler: ImplementedMySQLHandler
 
     init {
+        plugin.logger.warning("You're using the MySQL Data Handler")
+        plugin.logger.warning("It's recommended to switch to MongoDB (mongo)!")
 
         val config = HikariConfig()
         config.driverClassName = "com.mysql.cj.jdbc.Driver"
@@ -58,40 +72,26 @@ class MySQLDataHandler(
 
         Database.connect(HikariDataSource(config))
 
-        // Get Exposed to shut the hell up
-        runCatching {
-            exposedLogger::class.java.getDeclaredField("logger").apply { isAccessible = true }
-                .apply {
-                    get(exposedLogger).apply {
-                        this.javaClass.getDeclaredMethod("setLevel", Level::class.java)
-                            .invoke(this, Level.OFF)
-                    }
-                }
-        }
-
         playerHandler = ImplementedMySQLHandler(
             handler,
             UUIDTable("eco_players"),
-            plugin,
-            plugin.dataYml.getStrings("categorized-keys.player")
-                .mapNotNull { KeyHelpers.deserializeFromString(it) }
+            plugin
         )
 
         serverHandler = ImplementedMySQLHandler(
             handler,
             UUIDTable("eco_server"),
-            plugin,
-            plugin.dataYml.getStrings("categorized-keys.server")
-                .mapNotNull { KeyHelpers.deserializeFromString(it) }
+            plugin
         )
     }
 
-    override fun saveAll(uuids: Iterable<UUID>) {
-        serverHandler.saveAll(uuids.filter { it == serverProfileUUID })
-        playerHandler.saveAll(uuids.filter { it != serverProfileUUID })
+    override fun <T : Any> read(uuid: UUID, key: PersistentDataKey<T>): T? {
+        return applyFor(uuid) {
+            it.read(uuid, key)
+        }
     }
 
-    override fun <T> write(uuid: UUID, key: NamespacedKey, value: T) {
+    override fun <T : Any> write(uuid: UUID, key: PersistentDataKey<T>, value: T) {
         applyFor(uuid) {
             it.write(uuid, key, value)
         }
@@ -100,12 +100,6 @@ class MySQLDataHandler(
     override fun saveKeysFor(uuid: UUID, keys: Set<PersistentDataKey<*>>) {
         applyFor(uuid) {
             it.saveKeysForRow(uuid, keys)
-        }
-    }
-
-    override fun <T> read(uuid: UUID, key: PersistentDataKey<T>): T? {
-        return applyFor(uuid) {
-            it.read(uuid, key.key)
         }
     }
 
@@ -119,21 +113,21 @@ class MySQLDataHandler(
 
     override fun categorize(key: PersistentDataKey<*>, category: KeyRegistry.KeyCategory) {
         if (category == KeyRegistry.KeyCategory.SERVER) {
-            serverHandler.ensureKeyRegistration(key.key)
+            serverHandler.ensureKeyRegistration(key)
         } else {
-            playerHandler.ensureKeyRegistration(key.key)
+            playerHandler.ensureKeyRegistration(key)
         }
     }
 
     override fun save() {
         plugin.dataYml.set(
             "categorized-keys.player",
-            playerHandler.registeredKeys.values
+            playerHandler.registeredKeys
                 .map { KeyHelpers.serializeToString(it) }
         )
         plugin.dataYml.set(
             "categorized-keys.server",
-            serverHandler.registeredKeys.values
+            serverHandler.registeredKeys
                 .map { KeyHelpers.serializeToString(it) }
         )
         plugin.dataYml.save()
@@ -149,21 +143,15 @@ class MySQLDataHandler(
 private class ImplementedMySQLHandler(
     private val handler: EcoProfileHandler,
     private val table: UUIDTable,
-    plugin: EcoPlugin,
-    private val knownKeys: Collection<PersistentDataKey<*>>
+    plugin: EcoPlugin
 ) {
-    private val columns = Caffeine.newBuilder()
-        .expireAfterWrite(3, TimeUnit.SECONDS)
-        .build<String, Column<*>>()
-
     private val rows = Caffeine.newBuilder()
         .expireAfterWrite(3, TimeUnit.SECONDS)
         .build<UUID, ResultRow>()
 
     private val threadFactory = ThreadFactoryBuilder().setNameFormat("eco-mysql-thread-%d").build()
     private val executor = Executors.newFixedThreadPool(plugin.configYml.getInt("mysql.threads"), threadFactory)
-    val registeredKeys = ConcurrentHashMap<NamespacedKey, PersistentDataKey<*>>()
-    private val currentlyProcessingRegistration = ConcurrentHashMap<NamespacedKey, Future<*>>()
+    val registeredKeys = mutableSetOf<PersistentDataKey<*>>()
 
     init {
         transaction {
@@ -173,58 +161,32 @@ private class ImplementedMySQLHandler(
 
     fun initialize() {
         transaction {
-            for (key in knownKeys) {
-                registerColumn(key, table)
-            }
-
             SchemaUtils.createMissingTablesAndColumns(table, withLogs = false)
-            for (key in knownKeys) {
-                registeredKeys[key.key] = key
-            }
         }
     }
 
-    fun ensureKeyRegistration(key: NamespacedKey) {
-        if (registeredKeys.contains(key)) {
+    fun ensureKeyRegistration(key: PersistentDataKey<*>) {
+        if (table.columns.any { it.name == key.key.toString() }) {
+            registeredKeys.add(key)
             return
         }
 
-        val persistentKey = Eco.getHandler().keyRegistry.getKeyFrom(key) ?: return
-
-        if (table.columns.any { it.name == key.toString() }) {
-            registeredKeys[key] = persistentKey
-            return
-        }
-
-        val future = currentlyProcessingRegistration[key]
-
-        if (future != null) {
-            future.get()
-            return
-        }
-
-        currentlyProcessingRegistration[key] = executor.submit {
-            transaction {
-                registerColumn(persistentKey, table)
-                SchemaUtils.createMissingTablesAndColumns(table, withLogs = false)
-            }
-            registeredKeys[key] = persistentKey
-            currentlyProcessingRegistration.remove(key)
-        }
+        registerColumn(key)
+        registeredKeys.add(key)
     }
 
-    fun <T> write(uuid: UUID, key: NamespacedKey, value: T) {
-        getOrCreateRow(uuid)
-        doWrite(uuid, key, value)
+    fun <T : Any> write(uuid: UUID, key: PersistentDataKey<T>, value: Any) {
+        getRow(uuid)
+        doWrite(uuid, key, key.type.constrainSQLTypes(value))
     }
 
-    private fun <T> doWrite(uuid: UUID, key: NamespacedKey, value: T) {
-        val column: Column<T> = getColumn(key) as Column<T>
+    private fun doWrite(uuid: UUID, key: PersistentDataKey<*>, constrainedValue: Any) {
+        val column: Column<Any> = getColumn(key) as Column<Any>
 
         executor.submit {
             transaction {
                 table.update({ table.id eq uuid }) {
-                    it[column] = value
+                    it[column] = constrainedValue
                 }
             }
         }
@@ -234,35 +196,28 @@ private class ImplementedMySQLHandler(
         saveRow(uuid, keys)
     }
 
-    fun saveAll(uuids: Iterable<UUID>) {
-        for (uuid in uuids) {
-            saveRow(uuid, PersistentDataKey.values())
-        }
-    }
-
     private fun saveRow(uuid: UUID, keys: Set<PersistentDataKey<*>>) {
         val profile = handler.loadGenericProfile(uuid)
 
         executor.submit {
             transaction {
-                getOrCreateRow(uuid)
+                getRow(uuid)
 
                 for (key in keys) {
-                    doWrite(uuid, key.key, profile.read(key))
+                    doWrite(uuid, key, key.type.constrainSQLTypes(profile.read(key)))
                 }
             }
         }
     }
 
-    fun <T> read(uuid: UUID, key: NamespacedKey): T? {
+    fun <T> read(uuid: UUID, key: PersistentDataKey<T>): T? {
         val doRead = Callable<T?> {
-            var value: T? = null
             transaction {
-                val row = getOrCreateRow(uuid)
-                value = row[getColumn(key)] as T?
+                val row = getRow(uuid)
+                val column = getColumn(key)
+                val raw = row[column]
+                key.type.fromConstrained(raw)
             }
-
-            return@Callable value
         }
 
         ensureKeyRegistration(key) // DON'T DELETE THIS LINE! I know it's covered in getColumn, but I need to do it here as well.
@@ -274,38 +229,40 @@ private class ImplementedMySQLHandler(
         }
     }
 
-    private fun <T> registerColumn(key: PersistentDataKey<T>, table: UUIDTable) {
-        table.apply {
-            if (this.columns.stream().anyMatch { it.name == key.key.toString() }) {
-                return@apply
+    private fun <T> registerColumn(key: PersistentDataKey<T>) {
+        transaction {
+            table.apply {
+                when (key.type) {
+                    PersistentDataKeyType.INT -> registerColumn<Int>(key.key.toString(), IntegerColumnType())
+                        .default(key.defaultValue as Int)
+                    PersistentDataKeyType.DOUBLE -> registerColumn<Double>(key.key.toString(), DoubleColumnType())
+                        .default(key.defaultValue as Double)
+                    PersistentDataKeyType.BOOLEAN -> registerColumn<Boolean>(key.key.toString(), BooleanColumnType())
+                        .default(key.defaultValue as Boolean)
+                    PersistentDataKeyType.STRING -> registerColumn<String>(key.key.toString(), VarCharColumnType(512))
+                        .default(key.defaultValue as String)
+                    PersistentDataKeyType.STRING_LIST -> registerColumn<String>(
+                        key.key.toString(),
+                        VarCharColumnType(8192)
+                    ).default(PersistentDataKeyType.STRING_LIST.constrainSQLTypes(key.defaultValue as List<String>) as String)
+
+                    else -> throw NullPointerException("Null value found!")
+                }
             }
 
-            when (key.type) {
-                PersistentDataKeyType.INT -> registerColumn<Int>(key.key.toString(), IntegerColumnType())
-                    .default(key.defaultValue as Int)
-                PersistentDataKeyType.DOUBLE -> registerColumn<Double>(key.key.toString(), DoubleColumnType())
-                    .default(key.defaultValue as Double)
-                PersistentDataKeyType.BOOLEAN -> registerColumn<Boolean>(key.key.toString(), BooleanColumnType())
-                    .default(key.defaultValue as Boolean)
-                PersistentDataKeyType.STRING -> registerColumn<String>(key.key.toString(), VarCharColumnType(512))
-                    .default(key.defaultValue as String)
-
-                else -> throw NullPointerException("Null value found!")
-            }
+            SchemaUtils.createMissingTablesAndColumns(table, withLogs = false)
         }
     }
 
-    private fun getColumn(key: NamespacedKey): Column<*> {
+    private fun getColumn(key: PersistentDataKey<*>): Column<*> {
         ensureKeyRegistration(key)
 
-        val name = key.toString()
+        val name = key.key.toString()
 
-        return columns.get(name) {
-            table.columns.first { it.name == name }
-        }
+        return table.columns.first { it.name == name }
     }
 
-    private fun getOrCreateRow(uuid: UUID): ResultRow {
+    private fun getRow(uuid: UUID): ResultRow {
         fun select(uuid: UUID): ResultRow? {
             return transaction {
                 table.select { table.id eq uuid }.limit(1).singleOrNull()
@@ -325,4 +282,28 @@ private class ImplementedMySQLHandler(
             }
         }
     }
+}
+
+private fun <T> PersistentDataKeyType<T>.constrainSQLTypes(value: Any): Any {
+    return if (this == PersistentDataKeyType.STRING_LIST) {
+        @Suppress("UNCHECKED_CAST")
+        value as List<String>
+        value.joinToString(separator = ";")
+    } else {
+        value
+    }
+}
+
+private fun <T> PersistentDataKeyType<T>.fromConstrained(constrained: Any?): T? {
+    if (constrained == null) {
+        return null
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    return if (this == PersistentDataKeyType.STRING_LIST) {
+        constrained as String
+        constrained.split(";").toList()
+    } else {
+        constrained
+    } as T
 }

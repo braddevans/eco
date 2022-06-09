@@ -18,7 +18,7 @@ plugins {
 
 dependencies {
     implementation(project(":eco-api"))
-    implementation(project(":eco-core:core-plugin"))
+    implementation(project(path = ":eco-core:core-plugin", configuration = "shadow"))
     implementation(project(":eco-core:core-proxy"))
     implementation(project(":eco-core:core-backend"))
     implementation(project(path = ":eco-core:core-nms:v1_17_R1", configuration = "reobf"))
@@ -44,11 +44,8 @@ allprojects {
         // SuperiorSkyblock2
         maven("https://repo.bg-software.com/repository/api/")
 
-        // NMS (for jitpack compilation)
-        maven("https://repo.codemc.org/repository/nms/")
-
         // mcMMO, BentoBox
-        maven("https://repo.codemc.org/repository/maven-public/")
+        maven("https://repo.codemc.io/repository/maven-public/")
 
         // Spigot API, Bungee API
         maven("https://hub.spigotmc.org/nexus/content/repositories/snapshots/")
@@ -84,6 +81,7 @@ allprojects {
     dependencies {
         // Kotlin
         implementation(kotlin("stdlib", version = "1.6.21"))
+        implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.1")
 
         // Included in spigot jar, no need to move to implementation
         compileOnly("org.jetbrains:annotations:23.0.0")
@@ -101,7 +99,7 @@ allprojects {
         implementation("net.kyori:adventure-text-serializer-legacy:4.10.1")
 
         // Other
-        implementation("com.github.ben-manes.caffeine:caffeine:3.0.6")
+        implementation("com.github.ben-manes.caffeine:caffeine:3.1.0")
         implementation("org.apache.maven:maven-artifact:3.8.5")
     }
 
@@ -154,6 +152,13 @@ allprojects {
             relocate("google.protobuf", "com.willfp.eco.libs.protobuf") // Still don't know
             relocate("com.zaxxer.hikari", "com.willfp.eco.libs.hikari")
             //relocate("com.mysql", "com.willfp.eco.libs.mysql")
+            relocate("de.undercouch.bson4jackson", "com.willfp.eco.libs.bson4jackson")
+            relocate("com.fasterxml.jackson", "com.willfp.eco.libs.jackson")
+            relocate("com.mongodb", "com.willfp.eco.libs.mongodb")
+            relocate("org.bson", "com.willfp.eco.libs.bson")
+            relocate("org.litote", "com.willfp.eco.libs.litote")
+            relocate("org.reactivestreams", "com.willfp.eco.libs.reactivestreams")
+            relocate("reactor.", "com.willfp.eco.libs.reactor.") // Dot in name to be safe
 
             /*
             Kotlin and caffeine are not shaded so that they can be accessed directly by eco plugins.

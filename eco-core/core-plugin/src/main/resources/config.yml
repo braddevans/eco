@@ -1,17 +1,30 @@
 #
 # eco
 # by Auxilor
+# Default config (With Comments) can be found here: https://github.com/Auxilor/eco/blob/master/eco-core/core-plugin/src/main/resources/config.yml
 #
 
+# How player/server data is saved:
+# yaml - Stored in data.yml: Good option for single-node servers (i.e. no BungeeCord/Velocity)
+# mongo - (Recommended) If you're running on a network (Bungee/Velocity), you should use MongoDB if you can.
+# mysql - (Not Recommended) The basic choice for Bungee/Velocity networks, less flexible and worse performance than MongoDB. Only use it if you can't use MongoDB.
+data-handler: yaml
+
+# If data should be migrated automatically when changing data handler.
+perform-data-migration: true
+
+mongodb:
+  # The full MongoDB connection URL.
+  url: ""
+
 mysql:
-  enabled: false # Set to false, data.yml will be used instead.
   # How many threads to execute statements on. Higher numbers can be faster however
   # very high numbers can cause issues with OS configuration. If writes are taking
   # too long, increase this value.
   threads: 2
   # The maximum number of MySQL connections.
   connections: 10
-  # If read operations should be ran in the thread pool. Runs on main thread by default.
+  # If read operations should be run in the thread pool. Runs on main thread by default.
   async-reads: false
   host: localhost
   port: 3306
@@ -19,8 +32,13 @@ mysql:
   user: username
   password: passy
 
-# Options to fix villager bugs left behind from old (buggy) versions.
-villager-display-fix: false
+  # Ignore this option, it does nothing.
+  enabled: false # Ignore this - only for backwards compatibility
+
+# Options to manage the conflict finder
+conflicts:
+  whitelist: # Plugins that should never be marked as conflicts
+    - eco
 
 # DropQueue by default uses a faster collated queue system where all drops
 # that originate from the same player on the same tick are dropped together.
@@ -52,42 +70,10 @@ use-safer-namespacedkey-creation: false
 # default to prevent users from reporting bugs. Enable if you're a developer.
 log-full-extension-errors: false
 
-# Window items packets have the option to be run asynchronously. This may cause
-# some bugs and is considered experimental, however it has been tested without
-# any apparent issues. Enable this if performance is absolutely crucial or if you
-# are experiencing severe display lag.
-async-display:
-  # If async display should always be used.
-  always-enabled: false
-
-  # Log errors that occur in async processing.
-  log-errors: true
-
-  # The inventory types that should never be processed asynchronously.
-  # A list of IDs can be found here:
-  # https://hub.spigotmc.org/javadocs/bukkit/org/bukkit/event/inventory/InventoryType.html
-  disable-on-types:
-    - 'anvil'
-
-  # If the server is running under heavy load (below a certain TPS value), enable
-  # async display automatically. This can prevent some server crashes under load.
-  emergency:
-    # If emergency async should be used.
-    enabled: true
-    # Below this TPS value, emergency async display will be used.
-    cutoff: 17
-
-  # If players with a large amount of display packets should have their processing
-  # done asynchronously. This will help if a player is trying to crash the server
-  # by overloading the display system.
-  ratelimit:
-    # If rate limit async display should be used.
-    enabled: false
-    # The amount of window items packets per timeframe needed to enable async display
-    # for a specified player.
-    cutoff: 4
-    # The length of the timeframe in seconds.
-    # Cutoff 5, Timeframe 1 means that if there are more than 5 window items packets
-    # being sent per second for a player, then that player should have their packets
-    # handled asynchronously.
-    timeframe: 1
+# To make the custom crafting system work better for players, players are also sent an
+# additional recipe containing the displayed items as ingredients. However, with a large
+# number of recipes, this can create PacketTooLargeExceptions. If you have this exception,
+# disable this option. Bear in mind that this means the auto-craft preview will fail to
+# render items nicely, which may degrade the user experience on your server. If you use
+# a custom crafting table, though, this won't affect anything, and you should disable the option.
+displayed-recipes: true

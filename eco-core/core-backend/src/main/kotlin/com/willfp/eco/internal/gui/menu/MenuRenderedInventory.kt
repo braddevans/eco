@@ -34,7 +34,7 @@ class MenuRenderedInventory(
         menu.runOnRender(player)
     }
 
-    private fun generateCaptive() {
+    fun generateCaptive() {
         captiveItems.clear()
         for (i in 0 until inventory.size) {
             val (row, column) = MenuUtils.convertSlotToRowColumn(i)
@@ -43,7 +43,17 @@ class MenuRenderedInventory(
                 val renderedItem = slot.getItemStack(player)
                 val itemStack = inventory.getItem(i) ?: continue
 
-                if (itemStack == renderedItem || itemStack.type.isAir || itemStack.amount == 0) {
+                if (slot.isNotCaptiveFor(player)) {
+                    continue
+                }
+
+                if (!slot.isCaptiveFromEmpty) {
+                    if (itemStack == renderedItem) {
+                        continue
+                    }
+                }
+
+                if (itemStack.type.isAir || itemStack.amount == 0) {
                     continue
                 }
 

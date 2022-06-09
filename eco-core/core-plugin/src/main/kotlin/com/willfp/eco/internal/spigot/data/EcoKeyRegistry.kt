@@ -24,19 +24,28 @@ class EcoKeyRegistry : KeyRegistry {
         return registry.values.toMutableSet()
     }
 
+    override fun getCategory(key: PersistentDataKey<*>): KeyRegistry.KeyCategory? {
+        return categories[key.key]
+    }
+
     private fun <T> validateKey(key: PersistentDataKey<T>) {
+        val default = key.defaultValue
+
         when (key.type) {
-            PersistentDataKeyType.INT -> if (key.defaultValue !is Int) {
+            PersistentDataKeyType.INT -> if (default !is Int) {
                 throw IllegalArgumentException("Invalid Data Type! Should be Int")
             }
-            PersistentDataKeyType.DOUBLE -> if (key.defaultValue !is Double) {
+            PersistentDataKeyType.DOUBLE -> if (default !is Double) {
                 throw IllegalArgumentException("Invalid Data Type! Should be Double")
             }
-            PersistentDataKeyType.BOOLEAN -> if (key.defaultValue !is Boolean) {
+            PersistentDataKeyType.BOOLEAN -> if (default !is Boolean) {
                 throw IllegalArgumentException("Invalid Data Type! Should be Boolean")
             }
-            PersistentDataKeyType.STRING -> if (key.defaultValue !is String) {
+            PersistentDataKeyType.STRING -> if (default !is String) {
                 throw IllegalArgumentException("Invalid Data Type! Should be String")
+            }
+            PersistentDataKeyType.STRING_LIST -> if (default !is List<*> || default.firstOrNull() !is String?) {
+                throw IllegalArgumentException("Invalid Data Type! Should be String List")
             }
 
             else -> throw NullPointerException("Null value found!")

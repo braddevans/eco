@@ -14,10 +14,12 @@ dependencies {
     implementation 'com.zaxxer:HikariCP:5.0.0'
     implementation 'net.kyori:adventure-platform-bukkit:4.1.0'
     implementation 'org.javassist:javassist:3.28.0-GA'
+    implementation 'org.mongodb:mongodb-driver-sync:4.6.0'
+    implementation 'org.litote.kmongo:kmongo-coroutine:4.6.0'
 
     // Included in spigot jar
     compileOnly 'com.google.code.gson:gson:2.8.8'
-    compileOnly 'org.spigotmc:spigot-api:1.17.1-R0.1-SNAPSHOT'
+    compileOnly 'io.papermc.paper:paper-api:1.17.1-R0.1-SNAPSHOT'
 
     // Plugin dependencies
     compileOnly 'com.comphenix.protocol:ProtocolLib:4.6.1-SNAPSHOT'
@@ -61,6 +63,13 @@ dependencies {
 
     // All other libs
     compileOnly fileTree(dir: '../../lib', include: ['*.jar'])
+}
+
+shadowJar {
+    minimize {
+        exclude(dependency('org.litote.kmongo:kmongo-coroutine:.*'))
+        exclude(dependency('org.jetbrains.exposed:.*:.*'))
+    }
 }
 
 processResources {

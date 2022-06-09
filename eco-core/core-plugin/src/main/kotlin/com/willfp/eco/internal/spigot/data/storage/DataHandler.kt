@@ -2,26 +2,37 @@ package com.willfp.eco.internal.spigot.data.storage
 
 import com.willfp.eco.core.data.keys.KeyRegistry
 import com.willfp.eco.core.data.keys.PersistentDataKey
-import org.bukkit.NamespacedKey
 import java.util.UUID
 
-interface DataHandler {
-    fun save()
-    fun saveAll(uuids: Iterable<UUID>)
+abstract class DataHandler(
+    val type: HandlerType
+) {
+    /**
+     * Read value from a key.
+     */
+    abstract fun <T : Any> read(uuid: UUID, key: PersistentDataKey<T>): T?
 
-    fun categorize(key: PersistentDataKey<*>, category: KeyRegistry.KeyCategory) {
+    /**
+     * Write value to a key.
+     */
+    abstract fun <T : Any> write(uuid: UUID, key: PersistentDataKey<T>, value: T)
+
+    /**
+     * Save a set of keys for a given UUID.
+     */
+    abstract fun saveKeysFor(uuid: UUID, keys: Set<PersistentDataKey<*>>)
+
+    // Everything below this are methods that are only needed for certain implementations.
+
+    open fun save() {
 
     }
 
-    fun initialize() {
+    open fun categorize(key: PersistentDataKey<*>, category: KeyRegistry.KeyCategory) {
 
     }
 
-    fun savePlayer(uuid: UUID) {
-        saveKeysFor(uuid, PersistentDataKey.values())
-    }
+    open fun initialize() {
 
-    fun <T> write(uuid: UUID, key: NamespacedKey, value: T)
-    fun saveKeysFor(uuid: UUID, keys: Set<PersistentDataKey<*>>)
-    fun <T> read(uuid: UUID, key: PersistentDataKey<T>): T?
+    }
 }

@@ -29,6 +29,7 @@ import com.willfp.eco.internal.scheduling.EcoScheduler
 import com.willfp.eco.internal.spigot.data.DataYml
 import com.willfp.eco.internal.spigot.data.EcoKeyRegistry
 import com.willfp.eco.internal.spigot.data.EcoProfileHandler
+import com.willfp.eco.internal.spigot.data.storage.HandlerType
 import com.willfp.eco.internal.spigot.integrations.bstats.MetricHandler
 import com.willfp.eco.internal.spigot.proxy.CommonsInitializerProxy
 import com.willfp.eco.internal.spigot.proxy.DummyEntityFactoryProxy
@@ -57,7 +58,17 @@ class EcoHandler : EcoSpigotPlugin(), Handler {
 
     private var adventure: BukkitAudiences? = null
     private val keyRegistry = EcoKeyRegistry()
-    private val playerProfileHandler = EcoProfileHandler(this.configYml.getBool("mysql.enabled"), this)
+    private val playerProfileHandler = EcoProfileHandler(
+        if (this.configYml.getBool("mysql.enabled")) {
+            this.configYml.set("mysql.enabled", false)
+            this.configYml.set("data-handler", "mysql")
+            HandlerType.MYSQL
+        } else {
+            HandlerType.valueOf(
+                this.configYml.getString("data-handler").uppercase()
+            )
+        }, this
+    )
 
     @Suppress("RedundantNullableReturnType")
     private val keyFactory: InternalNamespacedKeyFactory? =
