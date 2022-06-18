@@ -2,6 +2,7 @@ package com.willfp.eco.core.items;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import com.willfp.eco.core.Eco;
 import com.willfp.eco.core.fast.FastItemStack;
 import com.willfp.eco.core.items.args.LookupArgParser;
 import com.willfp.eco.core.items.provider.ItemProvider;
@@ -185,6 +186,10 @@ public final class Items {
      */
     @NotNull
     public static TestableItem lookup(@NotNull final String key) {
+        if (key.startsWith("{")) {
+            return Eco.getHandler().getSNBTHandler().createTestable(key);
+        }
+
         return ITEMS_LOOKUP_HANDLER.parseKey(key);
     }
 
@@ -518,6 +523,28 @@ public final class Items {
         FastItemStack fis = FastItemStack.wrap(itemStack);
         fis.setBaseTag(container);
         return fis.unwrap();
+    }
+
+    /**
+     * Convert item to SNBT.
+     *
+     * @param itemStack The item.
+     * @return The NBT string.
+     */
+    @NotNull
+    public static String toSNBT(@NotNull final ItemStack itemStack) {
+        return Eco.getHandler().getSNBTHandler().toSNBT(itemStack);
+    }
+
+    /**
+     * Get item from SNBT.
+     *
+     * @param snbt The NBT string.
+     * @return The ItemStack, or null if invalid.
+     */
+    @Nullable
+    public static ItemStack fromSNBT(@NotNull final String snbt) {
+        return Eco.getHandler().getSNBTHandler().fromSNBT(snbt);
     }
 
     private Items() {
